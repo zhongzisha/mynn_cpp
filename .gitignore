@@ -8,3 +8,4 @@ results_*
 *.exe
 *.mat
 *.log
+/.ptp-sync/

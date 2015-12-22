@@ -1759,6 +1759,7 @@ int main_test_data_layer_ok(int argc, char *argv[]) {
 	delete batch_samples; batch_samples = NULL;
 	delete batch_labels; batch_labels = NULL;
 	delete trn_data_layer; trn_data_layer = NULL;
+	return 0;
 }
 
 int main_test_multigpu_ok(int argc, char *argv[]) {
@@ -1876,7 +1877,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
 	}
 	cudaDeviceReset();
-	exit(EXIT_SUCCESS);
+	return 0;
 }
 
 int main(int argc, char *argv[]) {
