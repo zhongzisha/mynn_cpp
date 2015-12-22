@@ -2322,6 +2322,7 @@ public:
 	}
 
 	void SaveNetParams(int epoch) {
+		cudaSetDevice(gpu_id);
 		stringstream f1; f1 << net_name << "_c1_weight_e" << epoch << ".mat";
 		conv1->filtersBlob->save_cpu_data_and_diff_to_mat(f1.str().c_str());
 		stringstream f2; f2 << net_name << "_c1_bias_e" << epoch << ".mat";
@@ -3037,7 +3038,7 @@ int main(int argc, char *argv[]) {
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
-				ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
+				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
@@ -3107,6 +3108,7 @@ int main(int argc, char *argv[]) {
 		DisableP2P(gpus);
 		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
 	}
+	ret_count = pthread_attr_destroy(&pta);
 	free(threads); threads = NULL;
 	cudaDeviceReset();
 	exit(EXIT_SUCCESS);
