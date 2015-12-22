@@ -1946,11 +1946,11 @@ public:
 
 	void BuildNet(int batch_size_, const string &net_params_file = "") {
 		cudaSetDevice(gpu_id);
+		CUBLAS_CHECK( cublasCreate(&cublas_handle) );
 		CUDA_CHECK( cudaStreamCreate(&curand_stream) );
 		curand_rngtype = CURAND_RNG_PSEUDO_DEFAULT;
 		CURAND_CHECK( curandCreateGenerator(&curand_generator, curand_rngtype) );
 		CURAND_CHECK( curandSetStream(curand_generator, curand_stream) );
-		CUBLAS_CHECK( cublasCreate(&cublas_handle) );
 
 		batch_samples = new Blob_t(batch_size_, 3, 32, 32);
 		batch_labels = new Blob_t(batch_size_, 1, 1, 1);
