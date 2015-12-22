@@ -502,12 +502,8 @@ public:
 		int count = N * C * H * W;
 		if(data_cpu == NULL)
 			MallocHost((void**)&data_cpu, count * sizeof(float));
-		if(data_cpu == NULL)
-			printf("malloc host is failed. count=%d\n", count);
-		if(data_gpu != NULL) {
-			cudaSetDevice(0);
+		if(data_gpu != NULL)
 			CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
-		}
 	}
 
 	void diff_to_cpu()
@@ -1793,9 +1789,9 @@ public:
 	SoftmaxWithLossLayer_t *sml1;
 	Blob_t *sml1_top;
 
-	ArgMaxParameter_t *argmax1_params;
-	ArgMaxLayer_t *argmax1;
-	Blob_t *argmax1_top;
+	//	ArgMaxParameter_t *argmax1_params;
+	//	ArgMaxLayer_t *argmax1;
+	//	Blob_t *argmax1_top;
 
 	AccuracyParameter_t *accuracy1_params;
 	AccuracyLayer_t *accuracy1;
@@ -1958,7 +1954,9 @@ public:
 	}
 
 	void BuildNet(int batch_size_, const string &net_params_file = "") {
+
 		cudaSetDevice(gpu_id);
+
 		CUBLAS_CHECK( cublasCreate(&cublas_handle) );
 		CUDA_CHECK( cudaStreamCreate(&curand_stream) );
 		curand_rngtype = CURAND_RNG_PSEUDO_DEFAULT;
@@ -3006,6 +3004,7 @@ int main(int argc, char *argv[]) {
 	cudaSetDevice(current_gpu_id);
 	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
+	tst_net->SaveNetParams(100);
 
 	pthread_t *threads;
 	pthread_attr_t pta;
