@@ -1,10 +1,10 @@
 CUDA_ROOT=/usr/local/cuda-6.5
 HOSTNAME=$(shell hostname)
-DATADIR=../data/
 OUTDIR=./tools
 EXE=caffe
 
 all:
+	mkdir -p ${OUTDIR}
 	@echo ${HOSTNAME}
 	rm -rf ${OUTDIR}/${EXE}
 	protoc -I=./ --cpp_out=./ ./myproto.proto
@@ -30,9 +30,6 @@ all:
 clean:
 	rm -rf ${EXE}
 
-# valgrind --tool=memcheck --leak-check=full ./test_read_imageset cifar10_train_lmdb
-# valgrind --tool=memcheck --track-origins=yes ./test_read_imageset cifar10_train_lmdb
-# ./$EXE cifar10_train_lmdb cifar10_test_lmdb mean.binaryproto 0.001 20 0.9 0.005 100 200 120 0,1,2,3
 
 
 

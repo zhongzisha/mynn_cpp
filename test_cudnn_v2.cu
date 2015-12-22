@@ -1880,7 +1880,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 	return 0;
 }
 
-int main(int argc, char *argv[]) {
+int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	if(argc != 12) {
 		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
@@ -2044,6 +2044,186 @@ int main(int argc, char *argv[]) {
 	delete tst_batch_samples;
 	delete tst_batch_labels;
 	delete trn_net;
+	delete tst_net;
+
+	delete trn_data_param; trn_data_param = NULL;
+	delete trn_data_layer; trn_data_layer = NULL;
+	delete tst_data_param; tst_data_param = NULL;
+	delete tst_data_layer; tst_data_layer = NULL;
+
+	if(num_gpus >= gpus.size()) {
+		printf("disable P2P: ");
+		DisableP2P(gpus);
+		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
+	}
+	free(threads); threads = NULL;
+	cudaDeviceReset();
+	exit(EXIT_SUCCESS);
+}
+
+int main(int argc, char *argv[]) {
+	if(argc != 12) {
+		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+		return -1;
+	}
+	string trn_db_filename = string(argv[1]);
+	string tst_db_filename = string(argv[2]);
+	string mean_file = string(argv[3]);
+	float lr_rate = atof(argv[4]);
+	int lr_stepsize = atoi(argv[5]);
+	float momentum = atof(argv[6]);
+	float weight_decay = atof(argv[7]);
+	int trn_batch_size = atoi(argv[8]);
+	int tst_batch_size = atoi(argv[9]);
+	int max_epoch_num = atoi(argv[10]);
+	string gpu_ids_str = string(argv[11]);
+
+
+	int current_gpu_id;
+	cudaGetDevice(&current_gpu_id);
+	printf("current gpu id: %d\n", current_gpu_id);
+
+	vector<int> gpus;
+	vector<string> strings;
+	boost::split(strings, gpu_ids_str, boost::is_any_of(","));
+	for (int i = 0; i < strings.size(); ++i) {
+		gpus.push_back(boost::lexical_cast<int>(strings[i]));
+	}
+	int num_gpus = 0;
+	cudaGetDeviceCount(&num_gpus);
+	printf("number of manually-set gpus: %ld, total %d gpus.\n", gpus.size(), num_gpus);
+
+	if(num_gpus >= gpus.size()) {
+		printf("enable P2P: ");
+		EnableP2P(gpus);
+		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
+	} else {
+		gpus.clear();
+		gpus.push_back(current_gpu_id);
+	}
+
+	cudaSetDevice(current_gpu_id);
+
+	vector<Network_t *> trn_nets(gpus.size());
+	vector<Blob_t *> batch_samples_slices(gpus.size());
+	vector<Blob_t *> batch_labels_slices(gpus.size());
+	vector<int> batch_sizes(gpus.size());
+	for(int i = 0; i < gpus.size(); i++) {
+		trn_nets[i] = NULL;
+		batch_samples_slices[i] = NULL;
+		batch_labels_slices[i] = NULL;
+		batch_sizes[i] = 0;
+	}
+	printf("initialize nets for each gpu ...\n");
+	for(int i = 0; i < gpus.size(); i++)
+	{
+		printf("=========== gpu [%d] ==============\n", gpus[i]);
+		cudaSetDevice(gpus[i]);
+
+		batch_samples_slices[i] = new Blob_t();
+		batch_labels_slices[i] = new Blob_t();
+		batch_sizes[i] = trn_batch_size / gpus.size();
+
+		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
+		trn_nets[i]->BuildNet(batch_sizes[i], "");
+		trn_nets[i]->batch_labels->allocate_cpu_data();
+	}
+	printf("initialize nets for each gpu (done) ...\n");
+
+	cudaSetDevice(current_gpu_id);
+
+	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
+	trn_data_param->backend = "lmdb";
+	trn_data_param->batch_size = trn_batch_size;
+	trn_data_param->source = trn_db_filename;
+	trn_data_param->mean_file = mean_file;
+	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
+	trn_data_layer->Setup();
+
+	Blob_t *tst_batch_samples = new Blob_t();
+	Blob_t *tst_batch_labels = new Blob_t();
+	DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
+	tst_data_param->backend = "lmdb";
+	tst_data_param->batch_size = tst_batch_size;
+	tst_data_param->source = tst_db_filename;
+	tst_data_param->mean_file = mean_file;
+	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
+	tst_data_layer->Setup();
+
+	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
+	tst_net->BuildNet(tst_batch_size, "");
+	tst_net->batch_labels->allocate_cpu_data();
+
+	pthread_t *threads;
+	pthread_attr_t pta;
+	threads = (pthread_t *) malloc(sizeof(pthread_t) * gpus.size());
+	int ret_count = pthread_attr_init(&pta);
+	thread_data_t thread_data[gpus.size()];
+	for(int i = 0; i < gpus.size(); i++) {
+		thread_data[i].lr_rate = lr_rate;
+		thread_data[i].momentum = momentum;
+		thread_data[i].weight_decay = weight_decay;
+		thread_data[i].current_gpu_id = current_gpu_id;
+		thread_data[i].net = trn_nets[i];
+		thread_data[i].net_gpu_id = gpus[i];
+		thread_data[i].batch_samples = batch_samples_slices[i];
+		thread_data[i].batch_labels = batch_labels_slices[i];
+	}
+
+	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
+
+		// testing net
+		float tst_loss = 0.0f;
+		// tst_net->CopyNetParamsFrom(trn_net);
+		for(int iter = 0; iter < floor(10000 / tst_batch_size); iter++) {
+			tst_data_layer->Forward_cpu(tst_batch_samples, tst_batch_labels);
+			tst_loss += tst_net->Forward();
+		}
+
+		// training net
+		for(int iter = 0; iter < floor(50000 / trn_batch_size); iter++) {
+			trn_data_layer->Forward_cpu_multi(batch_samples_slices, batch_labels_slices, batch_sizes);
+
+			tst_net->ClearNetParamsDiff();
+
+			// copy trn_net params into trn_nets_i
+			for(int i = 0; i < gpus.size(); i++) {
+				trn_nets[i]->CopyNetParamsFrom(tst_net);
+			}
+
+			for(int i = 0; i < gpus.size(); i++) {
+				ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
+			}
+
+			for(int i = 0; i < gpus.size(); i++) {
+				ret_count = pthread_join(threads[i], NULL);
+			}
+
+			cudaDeviceSynchronize();
+			cudaSetDevice(current_gpu_id);
+			// copy update values from each sub nets to the main trn_net
+			for(int i = 0; i < gpus.size(); i++) {
+				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
+			}
+			tst_net->UpdateNet();
+		}
+	}
+
+	for(int i = 0; i < gpus.size(); i++) {
+		cudaSetDevice(gpus[i]);
+		delete trn_nets[i]; trn_nets[i] = NULL;
+	}
+
+	cudaSetDevice(current_gpu_id);
+	for(int i = 0; i < gpus.size(); i++) {
+		delete batch_samples_slices[i]; batch_samples_slices[i] = NULL;
+		delete batch_labels_slices[i]; batch_labels_slices[i] = NULL;
+	}
+	batch_samples_slices.clear();
+	batch_labels_slices.clear();
+
+	delete tst_batch_samples;
+	delete tst_batch_labels;
 	delete tst_net;
 
 	delete trn_data_param; trn_data_param = NULL;
