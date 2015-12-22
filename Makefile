@@ -2,7 +2,7 @@ CUDA_ROOT=/usr/local/cuda-6.5
 HOSTNAME=$(shell hostname)
 DATADIR=../data/
 OUTDIR=./tools
-EXE=caffe.bin
+EXE=caffe
 
 all:
 	@echo ${HOSTNAME}
