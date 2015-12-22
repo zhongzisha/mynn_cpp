@@ -3010,6 +3010,8 @@ int main(int argc, char *argv[]) {
 	pthread_attr_t pta;
 	threads = (pthread_t *) malloc(sizeof(pthread_t) * gpus.size());
 	int ret_count = pthread_attr_init(&pta);
+	pthread_attr_setdetachstate(&pta, PTHREAD_CREATE_JOINABLE);
+
 	thread_data_t thread_data[gpus.size()];
 	for(int i = 0; i < gpus.size(); i++) {
 		thread_data[i].lr_rate = lr_rate;
