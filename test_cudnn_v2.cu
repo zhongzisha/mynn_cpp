@@ -539,12 +539,10 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 		cudaGetDeviceProperties(&prop[1], dst_gpu_id);
 		int can_access_peer;
 		cudaDeviceCanAccessPeer(&can_access_peer, src_gpu_id, dst_gpu_id);
-		if(can_access_peer) {
-			const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
-			if(has_uva) {
-				gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
-				return;
-			}
+		const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
+		if(can_access_peer || has_uva) {
+			gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
+			return;
 		} else {
 			float *temp_data = NULL;
 			float *dst_temp_data = NULL;
@@ -2192,6 +2190,7 @@ int main(int argc, char *argv[]) {
 		for(int iter = 0; iter < floor(50000 / trn_batch_size); iter++) {
 			trn_data_layer->Forward_cpu_multi(batch_samples_slices, batch_labels_slices, batch_sizes);
 
+			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
 
 			// copy trn_net params into trn_nets_i
