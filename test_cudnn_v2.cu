@@ -2290,7 +2290,7 @@ int main(int argc, char *argv[]) {
 
 			printf("update the net.\n");
 			cudaSetDevice(current_gpu_id);
-			tst_net->UpdateNet();
+			//tst_net->UpdateNet();
 			printf("update the net(done).\n");
 		}
 	}
