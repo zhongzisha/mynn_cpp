@@ -10,3 +10,5 @@ results_*
 *.log
 /.ptp-sync/
 tools/
+*.pb.h
+*.pb.cc
