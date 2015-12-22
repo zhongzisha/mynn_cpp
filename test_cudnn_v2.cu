@@ -2039,7 +2039,8 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 int main(int argc, char **argv) {
 
 	int N = 64;
-	float *data_h = new float[N];
+	float *data_h = NULL;
+	CUDA_CHECK( cudaMallocHost((void **)&data_h, N * sizeof(float)) );
 	for(int i = 0; i < N; i++) {
 		data_h[i] = (float)rand() / (float)RAND_MAX;
 	}
@@ -2083,7 +2084,7 @@ int main(int argc, char **argv) {
 	cudaSetDevice(1);
 	CUDA_CHECK( cudaFree(data_d) );
 	CUDA_CHECK( cudaFree(data_d_copy) );
-	delete[] data_h;
+	CUDA_CHECK( cudaFreeHost(data_h) );
 	delete[] data_h2;
 	cudaDeviceReset();
 }
