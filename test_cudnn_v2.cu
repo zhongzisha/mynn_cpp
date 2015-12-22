@@ -2048,6 +2048,7 @@ int main(int argc, char **argv) {
 	cudaSetDevice(1);
 	float *data_d = NULL;
 	CUDA_CHECK( cudaMalloc((void **)&data_d, N * sizeof(float)) );
+	CUDA_CHECK( cudaMemset(data_d, 0, N * sizeof(float)) );
 	CUDA_CHECK( cudaMemcpy(data_d, data_h, N * sizeof(float), cudaMemcpyHostToDevice) );
 	float *data_d_copy = NULL;
 	CUDA_CHECK( cudaMalloc((void **)&data_d_copy, N * sizeof(float)) );
