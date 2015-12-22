@@ -494,7 +494,8 @@ public:
 		if(data_cpu == NULL)
 			CUDA_CHECK( cudaMallocHost((void**)&data_cpu, count * sizeof(float)) );
 		if(data_gpu != NULL)
-			CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
+			// CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
+			CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDefault) );
 	}
 
 	void diff_to_cpu()
@@ -551,7 +552,7 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 {
 	int count = src->count();
 	if(src_gpu_id == dst_gpu_id) {
-		cudaSetDevice(src_gpu_id);
+		cudaSetDevice(dst_gpu_id);
 		gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
 	} else {
 		cudaDeviceProp prop[2];
@@ -561,7 +562,7 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 		cudaDeviceCanAccessPeer(&can_access_peer, src_gpu_id, dst_gpu_id);
 		const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
 		if(can_access_peer || has_uva) {
-			cudaSetDevice(src_gpu_id);
+			cudaSetDevice(dst_gpu_id);
 			gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
 		} else {
 			float *temp_data = NULL;
@@ -2355,31 +2356,14 @@ public:
 	}
 
 	void AddNetParamsDiffFrom(const Network_t *other) {
-		cudaError_t error;
 		AddBlobDiff_gpu(other->conv3->filtersBlob, other->gpu_id, conv3->filtersBlob, gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv3->biasBlob,    other->gpu_id, conv3->biasBlob,    gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv2->filtersBlob, other->gpu_id, conv2->filtersBlob, gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv2->biasBlob,    other->gpu_id, conv2->biasBlob, 	  gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv1->filtersBlob, other->gpu_id, conv1->filtersBlob, gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv1->biasBlob,    other->gpu_id, conv1->biasBlob, 	  gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->ip1->filtersBlob,   other->gpu_id, ip1->filtersBlob,   gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->ip1->biasBlob,      other->gpu_id, ip1->biasBlob, 	  gpu_id);
-		error = cudaGetLastError();
-						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 	}
 
 	void ClearNetParamsDiff() {
@@ -3075,12 +3059,11 @@ int main(int argc, char *argv[]) {
 			printf("add trn_net_i params diff into tst_net(done).\n");
 			cudaDeviceSynchronize();
 
-			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
-
 			if(epoch==0 && iter==0) {
 				tst_net->SaveNetParams(0);
 			}
+			error = cudaGetLastError();
+			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			printf("update tst_net params.\n");
 			cudaSetDevice(current_gpu_id);
