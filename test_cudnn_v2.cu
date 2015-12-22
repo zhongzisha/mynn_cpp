@@ -235,6 +235,21 @@ void gpu_add(const int N, const float* a, const float* b, float* y) {
   add_kernel<<<GPU_GET_BLOCKS(N), GPU_CUDA_NUM_THREADS>>>(N, a, b, y);
 }
 
+__global__ void set_kernel(const int n, const float alpha, float* y) {
+  CUDA_KERNEL_LOOP(index, n) {
+    y[index] = alpha;
+  }
+}
+void cpu_set(const int N, const float alpha, float *Y) {
+#pragma omp parallel
+	for(int i = 0; i < N; i++) {
+		Y[i] = alpha;
+	}
+}
+void gpu_set(const int N, const float alpha, float* Y) {
+	set_kernel<<<GPU_GET_BLOCKS(N), GPU_CUDA_NUM_THREADS>>>(N, alpha, Y);
+}
+
 void gpu_copy(const int N, const float *X, float *Y) {
 	CUDA_CHECK( cudaMemcpy(Y, X, sizeof(float) * N, cudaMemcpyDefault) );
 }
@@ -1664,10 +1679,14 @@ public:
 
 	void ClearNetParamsDiff() {
 		cudaSetDevice(gpu_id);
-		CUDA_CHECK( cudaMemset(conv1->filtersBlob->diff_gpu, 0, conv1->filtersBlob->count() * sizeof(float)) );
-		CUDA_CHECK( cudaMemset(conv1->biasBlob->diff_gpu, 0, conv1->biasBlob->count() * sizeof(float)) );
-		CUDA_CHECK( cudaMemset(ip1->filtersBlob->diff_gpu, 0, ip1->filtersBlob->count() * sizeof(float)) );
-		CUDA_CHECK( cudaMemset(ip1->biasBlob->diff_gpu, 0, ip1->biasBlob->count() * sizeof(float)) );
+		gpu_set(conv1->filtersBlob->count(), 0, conv1->filtersBlob->diff_gpu);
+		gpu_set(conv1->biasBlob->count(), 0, conv1->biasBlob->diff_gpu);
+		gpu_set(ip1->filtersBlob->count(), 0, ip1->filtersBlob->diff_gpu);
+		gpu_set(ip1->biasBlob->count(), 0, ip1->biasBlob->diff_gpu);
+		//		CUDA_CHECK( cudaMemset(conv1->filtersBlob->diff_gpu, 0, conv1->filtersBlob->count() * sizeof(float)) );
+		//		CUDA_CHECK( cudaMemset(conv1->biasBlob->diff_gpu, 0, conv1->biasBlob->count() * sizeof(float)) );
+		//		CUDA_CHECK( cudaMemset(ip1->filtersBlob->diff_gpu, 0, ip1->filtersBlob->count() * sizeof(float)) );
+		//		CUDA_CHECK( cudaMemset(ip1->biasBlob->diff_gpu, 0, ip1->biasBlob->count() * sizeof(float)) );
 	}
 
 };
@@ -2036,7 +2055,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	exit(EXIT_SUCCESS);
 }
 
-int main(int argc, char **argv) {
+int main_test_memcpy(int argc, char **argv) {
 
 	int N = 64;
 	float *data_h = NULL;
@@ -2089,9 +2108,10 @@ int main(int argc, char **argv) {
 	CUDA_CHECK( cudaFreeHost(data_h) );
 	delete[] data_h2;
 	cudaDeviceReset();
+	return 0;
 }
 
-int main_still_errors(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
 	if(argc != 12) {
 		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
