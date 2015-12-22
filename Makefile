@@ -1,10 +1,12 @@
 CUDA_ROOT=/usr/local/cuda-6.5
 HOSTNAME=$(shell hostname)
-EXE=test.exe
+DATADIR=../data/
+OUTDIR=./tools
+EXE=caffe.bin
 
 all:
 	@echo ${HOSTNAME}
-	rm -rf ${EXE}
+	rm -rf ${OUTDIR}/${EXE}
 	protoc -I=./ --cpp_out=./ ./myproto.proto
 	nvcc -m64 -ccbin=g++ -gencode arch=compute_35,code=sm_35 \
 	-Xcompiler -fopenmp \
@@ -23,7 +25,7 @@ all:
 	-lcudnn \
 	-lmatio \
 	-lhdf5 -lhdf5_hl \
-	-o ${EXE}
+	-o ${OUTDIR}/${EXE}
 	
 clean:
 	rm -rf ${EXE}
