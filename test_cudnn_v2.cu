@@ -124,27 +124,27 @@ const char* cublasGetErrorString(cublasStatus_t error) {
 		do { \
 			cudaError_t error = condition; \
 			if (error != cudaSuccess) \
-			printf("CUDA Error: %s\n", cudaGetErrorString(error)); \
+			printf("CUDA Error in %s(%d): %s\n", __FILE__, __LINE__, cudaGetErrorString(error)); \
 		} while (0)
 
 #define CUBLAS_CHECK(condition) \
 		do { \
 			cublasStatus_t status = condition; \
 			if (status != CUBLAS_STATUS_SUCCESS) \
-			printf("CUBLAS Error: %s\n", cublasGetErrorString(status)); \
+			printf("CUBLAS Error in %s(%d): %s\n", __FILE__, __LINE__, cublasGetErrorString(status)); \
 		} while (0)
 
 #define CURAND_CHECK(condition) \
 		do { \
 			curandStatus_t status = condition; \
 			if (status != CURAND_STATUS_SUCCESS) \
-			printf("CURAND Error: %s\n", curandGetErrorString(status)); \
+			printf("CURAND Error in %s(%d): %s\n", __FILE__, __LINE__, curandGetErrorString(status)); \
 		} while (0)
 
 #define CUDNN_CHECK(status) \
 		do { \
 			if (status != CUDNN_STATUS_SUCCESS) \
-			printf("CUDNN Error: %s\n", cudnnGetErrorString(status)); \
+			printf("CUDNN Error in %s(%d): %s\n", __FILE__, __LINE__, cudnnGetErrorString(status)); \
 		} while (0)
 
 #define EXIT_WAIVED 0
