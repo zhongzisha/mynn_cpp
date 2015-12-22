@@ -200,27 +200,27 @@ void DisableP2P(vector<int> gpus)
 // Use 1024 threads per block, which requires cuda sm_2x or above,
 // or fall back to attempt compatibility (best of luck to you).
 #if __CUDA_ARCH__ >= 200
-    const int GPU_CUDA_NUM_THREADS = 1024;
+const int GPU_CUDA_NUM_THREADS = 1024;
 #else
-    const int GPU_CUDA_NUM_THREADS = 512;
+const int GPU_CUDA_NUM_THREADS = 512;
 #endif
 
 // CUDA: number of blocks for threads.
 inline int GPU_GET_BLOCKS(const int N) {
-  return (N + GPU_CUDA_NUM_THREADS - 1) / GPU_CUDA_NUM_THREADS;
+	return (N + GPU_CUDA_NUM_THREADS - 1) / GPU_CUDA_NUM_THREADS;
 }
 
 // CUDA: grid stride looping
 #define CUDA_KERNEL_LOOP(i, n) \
-  for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
-       i < (n); \
-       i += blockDim.x * gridDim.x)
+		for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
+		i < (n); \
+		i += blockDim.x * gridDim.x)
 
 __global__ void add_kernel(const int n, const float* a,
-    const float* b, float* y) {
-  CUDA_KERNEL_LOOP(index, n) {
-    y[index] = a[index] + b[index];
-  }
+		const float* b, float* y) {
+	CUDA_KERNEL_LOOP(index, n) {
+		y[index] = a[index] + b[index];
+	}
 }
 
 void cpu_add(const int N, const float *a, const float *b, float *y) {
@@ -231,14 +231,14 @@ void cpu_add(const int N, const float *a, const float *b, float *y) {
 }
 
 void gpu_add(const int N, const float* a, const float* b, float* y) {
-  // NOLINT_NEXT_LINE(whitespace/operators)
-  add_kernel<<<GPU_GET_BLOCKS(N), GPU_CUDA_NUM_THREADS>>>(N, a, b, y);
+	// NOLINT_NEXT_LINE(whitespace/operators)
+	add_kernel<<<GPU_GET_BLOCKS(N), GPU_CUDA_NUM_THREADS>>>(N, a, b, y);
 }
 
 __global__ void set_kernel(const int n, const float alpha, float* y) {
-  CUDA_KERNEL_LOOP(index, n) {
-    y[index] = alpha;
-  }
+	CUDA_KERNEL_LOOP(index, n) {
+		y[index] = alpha;
+	}
 }
 void cpu_set(const int N, const float alpha, float *Y) {
 #pragma omp parallel
@@ -255,7 +255,7 @@ void gpu_copy(const int N, const float *X, float *Y) {
 }
 
 void gpu_asum(cublasHandle_t cublashandle, const int n, const float* x, float* y) {
-  CUBLAS_CHECK(cublasSasum(cublashandle, n, x, 1, y));
+	CUBLAS_CHECK(cublasSasum(cublashandle, n, x, 1, y));
 }
 
 void gpu_scal(cublasHandle_t cublashandle, const int N, const float alpha, float *X) {
@@ -1492,19 +1492,19 @@ public:
 	}
 
 	void Backward(const Blob_t *top, const Blob_t *label, Blob_t *bottom) {
-//		float alpha = (float)1.0f;
-//		float beta = (float)0.0f;
-//		CUDNN_CHECK( cudnnSoftmaxBackward( cudnnHandle,
-//				cudnn_softmax_params->cudnn_softmax_algo ,
-//				cudnn_softmax_params->cudnn_softmax_mode,
-//				&alpha,
-//				topTensorDesc,
-//				top->data_gpu,
-//				topTensorDesc,
-//				top->diff_gpu,
-//				&beta,
-//				bottomTensorDesc,
-//				bottom->diff_gpu) );
+		//		float alpha = (float)1.0f;
+		//		float beta = (float)0.0f;
+		//		CUDNN_CHECK( cudnnSoftmaxBackward( cudnnHandle,
+		//				cudnn_softmax_params->cudnn_softmax_algo ,
+		//				cudnn_softmax_params->cudnn_softmax_mode,
+		//				&alpha,
+		//				topTensorDesc,
+		//				top->data_gpu,
+		//				topTensorDesc,
+		//				top->diff_gpu,
+		//				&beta,
+		//				bottomTensorDesc,
+		//				bottom->diff_gpu) );
 
 		float* bottom_diff = bottom->diff_gpu;
 		const float* prob_data = prob_->data_gpu;
@@ -1767,13 +1767,13 @@ public:
 	Blob_t *ip1_top;
 
 	// the following softmax layer and multinomial logistic loss layer have been replaced by the softmaxwithloss layer.
-//	SoftmaxParameter_t *sm1_params;
-//	SoftmaxLayer_t *sm1;
-//	Blob_t *sm1_top;
-//
-//	MultinomialLogisticLossParameter_t *mlr1_params;
-//	MultinomialLogisticLossLayer_t *mlr1;
-//	Blob_t *mlr1_top;
+	//	SoftmaxParameter_t *sm1_params;
+	//	SoftmaxLayer_t *sm1;
+	//	Blob_t *sm1_top;
+	//
+	//	MultinomialLogisticLossParameter_t *mlr1_params;
+	//	MultinomialLogisticLossLayer_t *mlr1;
+	//	Blob_t *mlr1_top;
 
 	SoftmaxWithLossParameter_t *sml1_params;
 	SoftmaxWithLossLayer_t *sml1;
@@ -1839,19 +1839,19 @@ public:
 		ip1 = NULL;
 		ip1_top = NULL;
 		ip1_params = NULL;
-//		sm1 = NULL;
-//		sm1_top = NULL;
-//		sm1_params = NULL;
-//		mlr1 = NULL;
-//		mlr1_top = NULL;
-//		mlr1_params = NULL;
+		//		sm1 = NULL;
+		//		sm1_top = NULL;
+		//		sm1_params = NULL;
+		//		mlr1 = NULL;
+		//		mlr1_top = NULL;
+		//		mlr1_params = NULL;
 		sml1 = NULL;
 		sml1_top = NULL;
 		sml1_params = NULL;
 
-		argmax1 = NULL;
-		argmax1_top = NULL;
-		argmax1_params = NULL;
+		//		argmax1 = NULL;
+		//		argmax1_top = NULL;
+		//		argmax1_params = NULL;
 
 		accuracy1 = NULL;
 		accuracy1_top = NULL;
@@ -1889,8 +1889,8 @@ public:
 		delete relu3; relu3 = NULL;
 		delete mp3; mp3 = NULL;
 		delete ip1; ip1 = NULL;
-//		delete sm1; sm1 = NULL;
-//		delete mlr1; mlr1 = NULL;
+		//		delete sm1; sm1 = NULL;
+		//		delete mlr1; mlr1 = NULL;
 		delete sml1; sml1 = NULL;
 
 		delete conv1_top; conv1_top = NULL;
@@ -1903,8 +1903,8 @@ public:
 		delete relu3_top; relu3_top = NULL;
 		delete mp3_top; mp3_top = NULL;
 		delete ip1_top; ip1_top = NULL;
-//		delete sm1_top; sm1_top = NULL;
-//		delete mlr1_top; mlr1_top = NULL;
+		//		delete sm1_top; sm1_top = NULL;
+		//		delete mlr1_top; mlr1_top = NULL;
 		delete sml1_top; sml1_top = NULL;
 
 		delete conv1_params; conv1_params = NULL;
@@ -1917,13 +1917,13 @@ public:
 		delete relu3_params; relu3_params = NULL;
 		delete mp3_params; mp3_params = NULL;
 		delete ip1_params; ip1_params = NULL;
-//		delete sm1_params; sm1_params = NULL;
-//		delete mlr1_params; mlr1_params = NULL;
+		//		delete sm1_params; sm1_params = NULL;
+		//		delete mlr1_params; mlr1_params = NULL;
 		delete sml1_params; sml1_params = NULL;
 
-		delete argmax1; argmax1 = NULL;
-		delete argmax1_top; argmax1_top = NULL;
-		delete argmax1_params; argmax1_params = NULL;
+		//		delete argmax1; argmax1 = NULL;
+		//		delete argmax1_top; argmax1_top = NULL;
+		//		delete argmax1_params; argmax1_params = NULL;
 
 		delete accuracy1; accuracy1 = NULL;
 		delete accuracy1_top; accuracy1_top = NULL;
@@ -2090,19 +2090,19 @@ public:
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(ip1->biasBlob->count(), 0, ip1->biasBlob->data_gpu);
 
-//		printf("sm1 setup.\n");
-//		sm1_top = new Blob_t();
-//		sm1_params = new SoftmaxParameter_t();
-//		sm1_params->cudnn_softmax_algo = CUDNN_SOFTMAX_ACCURATE;
-//		sm1_params->cudnn_softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL;
-//		sm1 = new SoftmaxLayer_t(sm1_params);
-//		sm1->Setup(ip1_top, sm1_top);
-//
-//		printf("mlr1 setup (in cpu).\n");
-//		mlr1_top = new Blob_t();
-//		mlr1_params = new MultinomialLogisticLossParameter_t();
-//		mlr1 = new MultinomialLogisticLossLayer_t(mlr1_params);
-//		mlr1->Setup(sm1_top, mlr1_top);
+		//		printf("sm1 setup.\n");
+		//		sm1_top = new Blob_t();
+		//		sm1_params = new SoftmaxParameter_t();
+		//		sm1_params->cudnn_softmax_algo = CUDNN_SOFTMAX_ACCURATE;
+		//		sm1_params->cudnn_softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL;
+		//		sm1 = new SoftmaxLayer_t(sm1_params);
+		//		sm1->Setup(ip1_top, sm1_top);
+		//
+		//		printf("mlr1 setup (in cpu).\n");
+		//		mlr1_top = new Blob_t();
+		//		mlr1_params = new MultinomialLogisticLossParameter_t();
+		//		mlr1 = new MultinomialLogisticLossLayer_t(mlr1_params);
+		//		mlr1->Setup(sm1_top, mlr1_top);
 
 		printf("sml1 setup.\n");
 		sml1_top = new Blob_t();
@@ -2115,13 +2115,13 @@ public:
 		sml1 = new SoftmaxWithLossLayer_t(sml1_params);
 		sml1->Setup(ip1_top, sml1_top);
 
-		printf("argmax1 setup.\n");
-		argmax1_top = new Blob_t();
-		argmax1_params = new ArgMaxParameter_t();
-		argmax1_params->out_max_val = true;
-		argmax1_params->top_k = 1;
-		argmax1 = new ArgMaxLayer_t(argmax1_params);
-		argmax1->Setup(sml1_top, argmax1_top);
+		//		printf("argmax1 setup.\n");
+		//		argmax1_top = new Blob_t();
+		//		argmax1_params = new ArgMaxParameter_t();
+		//		argmax1_params->out_max_val = true;
+		//		argmax1_params->top_k = 1;
+		//		argmax1 = new ArgMaxLayer_t(argmax1_params);
+		//		argmax1->Setup(sml1_top, argmax1_top);
 
 		printf("accuracy1 setup.\n");
 		accuracy1_top = new Blob_t();
@@ -2205,7 +2205,7 @@ public:
 
 		sml1->Forward(ip1_top, batch_labels, sml1_top, loss);
 
-		argmax1->Forward_cpu(sml1_top, argmax1_top);
+		//		argmax1->Forward_cpu(sml1_top, argmax1_top);
 
 		accuracy1->Forward_cpu(ip1_top, batch_labels, accuracy1_top);
 
@@ -2377,8 +2377,8 @@ void do_slave(void *data_)
 {
 	thread_data_t *data = (thread_data_t *)data_;
 	cudaSetDevice(data->net_gpu_id);
-	CUDA_CHECK( cudaMemcpy(data->net->batch_samples->data_gpu, data->batch_samples->data_cpu, data->batch_samples->count() * sizeof(float), cudaMemcpyHostToDevice) );
-	CUDA_CHECK( cudaMemcpy(data->net->batch_labels->data_gpu, data->batch_labels->data_cpu, data->batch_labels->count() * sizeof(float), cudaMemcpyHostToDevice) );
+	// CUDA_CHECK( cudaMemcpy(data->net->batch_samples->data_gpu, data->batch_samples->data_cpu, data->batch_samples->count() * sizeof(float), cudaMemcpyHostToDevice) );
+	// CUDA_CHECK( cudaMemcpy(data->net->batch_labels->data_gpu, data->batch_labels->data_cpu, data->batch_labels->count() * sizeof(float), cudaMemcpyHostToDevice) );
 	float trn_loss, trn_acc;
 	data->net->ForwardBackward(&trn_loss, &trn_acc);
 	// printf("trn_loss: %.6f\n", trn_loss);
@@ -2781,107 +2781,107 @@ int main_test_memcpy(int argc, char **argv) {
 	return 0;
 }
 
-int main(int argc, char **argv) {
+int main_single_gpu_ok(int argc, char **argv) {
 	if(argc != 12) {
-			printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
-			return -1;
+		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+		return -1;
+	}
+	string trn_db_filename = string(argv[1]);
+	string tst_db_filename = string(argv[2]);
+	string mean_file = string(argv[3]);
+	float lr_rate = atof(argv[4]);
+	int lr_stepsize = atoi(argv[5]);
+	float momentum = atof(argv[6]);
+	float weight_decay = atof(argv[7]);
+	int trn_batch_size = atoi(argv[8]);
+	int tst_batch_size = atoi(argv[9]);
+	int max_epoch_num = atoi(argv[10]);
+	string gpu_ids_str = string(argv[11]);
+
+	int current_gpu_id = 0;
+	cudaSetDevice(current_gpu_id);
+	Blob_t *trn_batch_samples = new Blob_t();
+	Blob_t *trn_batch_labels = new Blob_t();
+	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
+	trn_data_param->backend = "lmdb";
+	trn_data_param->batch_size = trn_batch_size;
+	trn_data_param->source = trn_db_filename;
+	trn_data_param->mean_file = mean_file;
+	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
+	trn_data_layer->Setup();
+
+	Blob_t *tst_batch_samples = new Blob_t();
+	Blob_t *tst_batch_labels = new Blob_t();
+	DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
+	tst_data_param->backend = "lmdb";
+	tst_data_param->batch_size = tst_batch_size;
+	tst_data_param->source = tst_db_filename;
+	tst_data_param->mean_file = mean_file;
+	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
+	tst_data_layer->Setup();
+
+	Network_t *trn_net = new Network_t("trn_net", current_gpu_id);
+	trn_net->BuildNet(trn_batch_size, "");
+	trn_net->batch_labels->allocate_cpu_data();
+
+	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
+	tst_net->BuildNet(tst_batch_size, "");
+	tst_net->batch_labels->allocate_cpu_data();
+
+	int num_tst_iters = floor(10000 / tst_batch_size);
+	int num_trn_iters = floor(50000 / trn_batch_size);
+	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
+
+		// testing net
+		float tst_loss = 0.0f, tst_loss_batch = 0.0f;
+		float tst_acc  = 0.0f, tst_acc_batch  = 0.0f;
+		tst_net->CopyNetParamsFrom(trn_net);
+		for(int iter = 0; iter < num_tst_iters; iter++) {
+			tst_data_layer->Forward_to_Network(tst_net->batch_samples, tst_net->batch_labels);
+			tst_net->Forward(&tst_loss_batch, &tst_acc_batch);
+			tst_loss += tst_loss_batch;
+			tst_acc += tst_acc_batch;
 		}
-		string trn_db_filename = string(argv[1]);
-		string tst_db_filename = string(argv[2]);
-		string mean_file = string(argv[3]);
-		float lr_rate = atof(argv[4]);
-		int lr_stepsize = atoi(argv[5]);
-		float momentum = atof(argv[6]);
-		float weight_decay = atof(argv[7]);
-		int trn_batch_size = atoi(argv[8]);
-		int tst_batch_size = atoi(argv[9]);
-		int max_epoch_num = atoi(argv[10]);
-		string gpu_ids_str = string(argv[11]);
+		tst_loss /= num_tst_iters;
+		tst_acc  /= num_tst_iters;
 
-		int current_gpu_id = 0;
-		cudaSetDevice(current_gpu_id);
-		Blob_t *trn_batch_samples = new Blob_t();
-		Blob_t *trn_batch_labels = new Blob_t();
-		DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
-		trn_data_param->backend = "lmdb";
-		trn_data_param->batch_size = trn_batch_size;
-		trn_data_param->source = trn_db_filename;
-		trn_data_param->mean_file = mean_file;
-		DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
-		trn_data_layer->Setup();
-
-		Blob_t *tst_batch_samples = new Blob_t();
-		Blob_t *tst_batch_labels = new Blob_t();
-		DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
-		tst_data_param->backend = "lmdb";
-		tst_data_param->batch_size = tst_batch_size;
-		tst_data_param->source = tst_db_filename;
-		tst_data_param->mean_file = mean_file;
-		DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
-		tst_data_layer->Setup();
-
-		Network_t *trn_net = new Network_t("trn_net", current_gpu_id);
-		trn_net->BuildNet(trn_batch_size, "");
-		trn_net->batch_labels->allocate_cpu_data();
-
-		Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
-		tst_net->BuildNet(tst_batch_size, "");
-		tst_net->batch_labels->allocate_cpu_data();
-
-		int num_tst_iters = floor(10000 / tst_batch_size);
-		int num_trn_iters = floor(50000 / trn_batch_size);
-		for(int epoch = 0; epoch < max_epoch_num; epoch++) {
-
-			// testing net
-			float tst_loss = 0.0f, tst_loss_batch = 0.0f;
-			float tst_acc  = 0.0f, tst_acc_batch  = 0.0f;
-			tst_net->CopyNetParamsFrom(trn_net);
-			for(int iter = 0; iter < num_tst_iters; iter++) {
-				tst_data_layer->Forward_to_Network(tst_net->batch_samples, tst_net->batch_labels);
-				tst_net->Forward(&tst_loss_batch, &tst_acc_batch);
-				tst_loss += tst_loss_batch;
-				tst_acc += tst_acc_batch;
-			}
-			tst_loss /= num_tst_iters;
-			tst_acc  /= num_tst_iters;
-
-			// training net
-			float trn_loss = 0.0f, trn_loss_batch = 0.0f;
-			float trn_acc  = 0.0f, trn_acc_batch  = 0.0f;
-			for(int iter = 0; iter < num_trn_iters; iter++) {
-				trn_data_layer->Forward_to_Network(trn_net->batch_samples, trn_net->batch_labels);
-				trn_net->ForwardBackward(&trn_loss_batch, &trn_acc_batch);
-				trn_loss += trn_loss_batch;
-				trn_acc  += trn_acc_batch;
-				trn_net->ComputeUpdateValue(lr_rate, momentum, weight_decay);
-				trn_net->UpdateNet();
-			}
-			trn_loss /= num_trn_iters;
-			trn_acc  /= num_trn_iters;
-
-			// update learning rate
-			if((epoch != 0) && (epoch % lr_stepsize == 0))
-			{
-				lr_rate /= 10;
-				trn_net->SaveNetParams(epoch);
-			}
-			printf("epoch[%d]: trn_loss=%.6f, trn_acc=%.6f, tst_loss=%.6f, tst_acc=%.6f\n",
-					epoch, trn_loss, trn_acc, tst_loss, tst_acc);
+		// training net
+		float trn_loss = 0.0f, trn_loss_batch = 0.0f;
+		float trn_acc  = 0.0f, trn_acc_batch  = 0.0f;
+		for(int iter = 0; iter < num_trn_iters; iter++) {
+			trn_data_layer->Forward_to_Network(trn_net->batch_samples, trn_net->batch_labels);
+			trn_net->ForwardBackward(&trn_loss_batch, &trn_acc_batch);
+			trn_loss += trn_loss_batch;
+			trn_acc  += trn_acc_batch;
+			trn_net->ComputeUpdateValue(lr_rate, momentum, weight_decay);
+			trn_net->UpdateNet();
 		}
+		trn_loss /= num_trn_iters;
+		trn_acc  /= num_trn_iters;
 
-		delete trn_net;
-		delete tst_net;
+		// update learning rate
+		if((epoch != 0) && (epoch % lr_stepsize == 0))
+		{
+			lr_rate /= 10;
+			trn_net->SaveNetParams(epoch);
+		}
+		printf("epoch[%d]: trn_loss=%.6f, trn_acc=%.6f, tst_loss=%.6f, tst_acc=%.6f\n",
+				epoch, trn_loss, trn_acc, tst_loss, tst_acc);
+	}
 
-		delete trn_data_layer;
-		delete tst_data_layer;
-		delete trn_data_param;
-		delete tst_data_param;
+	delete trn_net;
+	delete tst_net;
 
-		cudaDeviceReset();
-		return 0;
+	delete trn_data_layer;
+	delete tst_data_layer;
+	delete trn_data_param;
+	delete tst_data_param;
+
+	cudaDeviceReset();
+	return 0;
 }
 
-int main_still_errors(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
 	if(argc != 12) {
 		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
@@ -2938,8 +2938,6 @@ int main_still_errors(int argc, char *argv[]) {
 	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
 	trn_data_layer->Setup();
 
-	Blob_t *tst_batch_samples = new Blob_t();
-	Blob_t *tst_batch_labels = new Blob_t();
 	DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
 	tst_data_param->backend = "lmdb";
 	tst_data_param->batch_size = tst_batch_size;
@@ -2947,16 +2945,6 @@ int main_still_errors(int argc, char *argv[]) {
 	tst_data_param->mean_file = mean_file;
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
-	tst_batch_samples->N = tst_batch_size;
-	tst_batch_samples->C = tst_data_layer->prefetch_data_->C;
-	tst_batch_samples->H = tst_data_layer->prefetch_data_->H;
-	tst_batch_samples->W = tst_data_layer->prefetch_data_->W;
-	tst_batch_samples->allocate_cpu_data();
-	tst_batch_labels->N = tst_batch_size;
-	tst_batch_labels->C = tst_data_layer->prefetch_label_->C;
-	tst_batch_labels->H = tst_data_layer->prefetch_label_->H;
-	tst_batch_labels->W = tst_data_layer->prefetch_label_->W;
-	tst_batch_labels->allocate_cpu_data();
 
 	vector<Network_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
@@ -2974,23 +2962,14 @@ int main_still_errors(int argc, char *argv[]) {
 		printf("=========== gpu [%d] ==============\n", gpus[i]);
 		cudaSetDevice(current_gpu_id);
 		batch_sizes[i] = trn_batch_size / gpus.size();
-		batch_samples_slices[i] = new Blob_t();
-		batch_samples_slices[i]->N = batch_sizes[i];
-		batch_samples_slices[i]->C = trn_data_layer->prefetch_data_->C;
-		batch_samples_slices[i]->H = trn_data_layer->prefetch_data_->H;
-		batch_samples_slices[i]->W = trn_data_layer->prefetch_data_->W;
-		batch_samples_slices[i]->allocate_cpu_data();
-		batch_labels_slices[i] = new Blob_t();
-		batch_labels_slices[i]->N = batch_sizes[i];
-		batch_labels_slices[i]->C = trn_data_layer->prefetch_label_->C;
-		batch_labels_slices[i]->H = trn_data_layer->prefetch_label_->H;
-		batch_labels_slices[i]->W = trn_data_layer->prefetch_label_->W;
-		batch_labels_slices[i]->allocate_cpu_data();
 
 		cudaSetDevice(gpus[i]);
 		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
 		trn_nets[i]->BuildNet(batch_sizes[i], "");
 		trn_nets[i]->batch_labels->allocate_cpu_data();
+
+		batch_samples_slices[i] = trn_nets[i]->batch_samples;
+		batch_labels_slices[i] = trn_nets[i]->batch_labels;
 	}
 	printf("initialize nets for each gpu (done) ...\n");
 
@@ -3015,20 +2994,27 @@ int main_still_errors(int argc, char *argv[]) {
 		thread_data[i].batch_labels = batch_labels_slices[i];
 	}
 
+	int num_tst_iters = floor(10000 / tst_batch_size);
+	int num_trn_iters = floor(50000 / trn_batch_size);
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 
 		// testing net
-		float tst_loss = 0.0f, tst_acc = 0.0f;
-		// tst_net->CopyNetParamsFrom(trn_net);
-		for(int iter = 0; iter < floor(10000 / tst_batch_size); iter++) {
-			tst_data_layer->Forward_cpu(tst_batch_samples, tst_batch_labels);
-			tst_net->Forward(&tst_loss, &tst_acc);
+		float tst_loss = 0.0f, tst_loss_batch = 0.0f;
+		float tst_acc  = 0.0f, tst_acc_batch  = 0.0f;
+		for(int iter = 0; iter < num_tst_iters; iter++) {
+			tst_data_layer->Forward_to_Network(tst_net->batch_samples, tst_net->batch_labels);
+			tst_net->Forward(&tst_loss_batch, &tst_acc_batch);
+			tst_loss += tst_loss_batch;
+			tst_acc  += tst_acc_batch;
 		}
-		printf("epoch[%d]: tst_loss=%.6f\n", epoch, tst_loss);
+		tst_loss /= num_tst_iters;
+		tst_acc  /= num_tst_iters;
+		printf("epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n",
+				epoch, tst_loss, tst_acc);
 
 		// training net
-		for(int iter = 0; iter < floor(50000 / trn_batch_size); iter++) {
-			trn_data_layer->Forward_cpu_multi(batch_samples_slices, batch_labels_slices, batch_sizes);
+		for(int iter = 0; iter < num_trn_iters; iter++) {
+			trn_data_layer->Forward_to_Network_multi(batch_samples_slices, batch_labels_slices, batch_sizes);
 
 			// copy trn_net params into trn_nets_i
 			for(int i = 0; i < gpus.size(); i++) {
@@ -3070,15 +3056,10 @@ int main_still_errors(int argc, char *argv[]) {
 	}
 
 	cudaSetDevice(current_gpu_id);
-	for(int i = 0; i < gpus.size(); i++) {
-		delete batch_samples_slices[i]; batch_samples_slices[i] = NULL;
-		delete batch_labels_slices[i]; batch_labels_slices[i] = NULL;
-	}
+
 	batch_samples_slices.clear();
 	batch_labels_slices.clear();
 
-	delete tst_batch_samples;
-	delete tst_batch_labels;
 	delete tst_net;
 
 	delete trn_data_param; trn_data_param = NULL;
