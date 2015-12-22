@@ -533,8 +533,8 @@ void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gp
 		cudaDeviceCanAccessPeer(&can_access_peer, src_gpu_id, dst_gpu_id);
 		const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
 		if(can_access_peer || has_uva) {
+			cudaSetDevice(src_gpu_id);
 			cudaMemcpy(dst->data_gpu, src->data_gpu, count * sizeof(float), cudaMemcpyDefault);
-			return;
 		} else {
 			float *temp_data = NULL;
 			cudaSetDevice(src_gpu_id);
@@ -561,8 +561,8 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 		cudaDeviceCanAccessPeer(&can_access_peer, src_gpu_id, dst_gpu_id);
 		const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
 		if(can_access_peer || has_uva) {
+			cudaSetDevice(src_gpu_id);
 			gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
-			return;
 		} else {
 			float *temp_data = NULL;
 			float *dst_temp_data = NULL;
@@ -3025,14 +3025,24 @@ int main(int argc, char *argv[]) {
 		printf("epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n",
 				epoch, tst_loss, tst_acc);
 
+		cudaError_t error;
+		error = cudaGetLastError();
+		printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
+
 		// training net
 		for(int iter = 0; iter < num_trn_iters; iter++) {
 			trn_data_layer->Forward_to_Network_multi(gpus, batch_sizes, batch_samples_slices, batch_labels_slices);
+
+			error = cudaGetLastError();
+			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			// copy trn_net params into trn_nets_i
 			for(int i = 0; i < gpus.size(); i++) {
 				trn_nets[i]->CopyNetParamsFrom(tst_net);
 			}
+
+			error = cudaGetLastError();
+			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			for(int i = 0; i < gpus.size(); i++) {
 				ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
@@ -3043,11 +3053,19 @@ int main(int argc, char *argv[]) {
 			}
 			cudaDeviceSynchronize();
 
+
+			error = cudaGetLastError();
+			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
+
 			printf("clear net params diff.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
 			printf("clear net params diff(done).\n");
 			cudaDeviceSynchronize();
+
+
+			error = cudaGetLastError();
+			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			printf("add trn_net_i params diff into tst_net.\n");
 			cudaSetDevice(current_gpu_id);
@@ -3057,12 +3075,11 @@ int main(int argc, char *argv[]) {
 			printf("add trn_net_i params diff into tst_net(done).\n");
 			cudaDeviceSynchronize();
 
-			cudaError_t error;
 			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", cudaGetErrorString(error));
+			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			if(epoch==0 && iter==0) {
-				tst_net->SaveNetParams(0);
+				tst_net->SaveNetParams(0, true);
 			}
 
 			printf("update tst_net params.\n");
@@ -3071,8 +3088,12 @@ int main(int argc, char *argv[]) {
 			printf("update tst_net params(done).\n");
 			cudaDeviceSynchronize();
 
+
+			error = cudaGetLastError();
+			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
+
 			if(epoch==0 && iter==0) {
-				tst_net->SaveNetParams(1);
+				tst_net->SaveNetParams(1, true);
 			}
 
 			break;
