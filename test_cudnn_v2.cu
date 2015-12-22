@@ -2384,6 +2384,7 @@ void do_slave(void *data_)
 	float trn_loss, trn_acc;
 	data->net->ForwardBackward(&trn_loss, &trn_acc);
 	data->net->ComputeUpdateValue(data->lr_rate, data->momentum, data->weight_decay);
+	printf("gpuid[%d]: trn_loss=%.6f, trn_acc=%.6f\n", data->net_gpu_id, trn_loss, trn_acc);
 }
 
 
