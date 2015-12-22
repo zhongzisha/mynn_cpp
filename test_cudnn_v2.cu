@@ -550,14 +550,14 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 		float *temp_data = NULL;
 		float *dst_temp_data = NULL;
 		cudaSetDevice(src_gpu_id);
-		cudaMallocHost((void **)&temp_data, count * sizeof(float));
-		cudaMemcpy(temp_data, src->diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost);
+		CUDA_CHECK( cudaMallocHost((void **)&temp_data, count * sizeof(float)) );
+		CUDA_CHECK( cudaMemcpy(temp_data, src->diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 		cudaSetDevice(dst_gpu_id);
-		cudaMalloc((void **)&dst_temp_data, count * sizeof(float));
-		cudaMemcpy(dst_temp_data, temp_data, count * sizeof(float), cudaMemcpyHostToDevice);
+		CUDA_CHECK( cudaMalloc((void **)&dst_temp_data, count * sizeof(float)) );
+		CUDA_CHECK( cudaMemcpy(dst_temp_data, temp_data, count * sizeof(float), cudaMemcpyHostToDevice) );
 		gpu_add(count, dst_temp_data, dst->diff_gpu, dst->diff_gpu);
-		cudaFreeHost(temp_data);
-		cudaFree(dst_temp_data);
+		CUDA_CHECK( cudaFreeHost(temp_data) );
+		CUDA_CHECK( cudaFree(dst_temp_data) );
 	}
 	printf("AddBlobDiff_gpu(done).\n");
 }
@@ -634,19 +634,9 @@ public:
 		JoinPrefetchThread();
 
 		// printf("copy data to top_data.\n");
-		top_data->N = prefetch_data_->N;
-		top_data->C = prefetch_data_->C;
-		top_data->H = prefetch_data_->H;
-		top_data->W = prefetch_data_->W;
-		top_data->allocate_cpu_data();
 		memcpy(top_data->data_cpu, prefetch_data_->data_cpu, prefetch_data_->count() * sizeof(float));
 
 		// printf("copy label to top_label.\n");
-		top_label->N = prefetch_label_->N;
-		top_label->C = prefetch_label_->C;
-		top_label->H = prefetch_label_->H;
-		top_label->W = prefetch_label_->W;
-		top_label->allocate_cpu_data();
 		memcpy(top_label->data_cpu, prefetch_label_->data_cpu, prefetch_label_->count() * sizeof(float));
 
 		// printf("Start a new prefetch thread.\n");
@@ -663,21 +653,11 @@ public:
 				start_index += batch_sizes[j];
 			}
 			// printf("copy data to top_data.\n");
-			top_data[i]->N = batch_sizes[i];
-			top_data[i]->C = prefetch_data_->C;
-			top_data[i]->H = prefetch_data_->H;
-			top_data[i]->W = prefetch_data_->W;
-			top_data[i]->allocate_cpu_data();
 			memcpy(top_data[i]->data_cpu,
 					prefetch_data_->data_cpu + start_index * top_data[i]->C * top_data[i]->H * top_data[i]->W,
 					top_data[i]->count() * sizeof(float));
 
 			// printf("copy label to top_label.\n");
-			top_label[i]->N = batch_sizes[i];
-			top_label[i]->C = prefetch_label_->C;
-			top_label[i]->H = prefetch_label_->H;
-			top_label[i]->W = prefetch_label_->W;
-			top_label[i]->allocate_cpu_data();
 			memcpy(top_label[i]->data_cpu,
 					prefetch_label_->data_cpu + start_index * top_data[i]->C * top_data[i]->H * top_data[i]->W,
 					top_label[i]->count() * sizeof(float));
@@ -2110,34 +2090,7 @@ int main(int argc, char *argv[]) {
 
 	cudaSetDevice(current_gpu_id);
 
-	vector<Network_t *> trn_nets(gpus.size());
-	vector<Blob_t *> batch_samples_slices(gpus.size());
-	vector<Blob_t *> batch_labels_slices(gpus.size());
-	vector<int> batch_sizes(gpus.size());
-	for(int i = 0; i < gpus.size(); i++) {
-		trn_nets[i] = NULL;
-		batch_samples_slices[i] = NULL;
-		batch_labels_slices[i] = NULL;
-		batch_sizes[i] = 0;
-	}
-	printf("initialize nets for each gpu ...\n");
-	for(int i = 0; i < gpus.size(); i++)
-	{
-		printf("=========== gpu [%d] ==============\n", gpus[i]);
-		cudaSetDevice(gpus[i]);
-
-		batch_samples_slices[i] = new Blob_t();
-		batch_labels_slices[i] = new Blob_t();
-		batch_sizes[i] = trn_batch_size / gpus.size();
-
-		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
-		trn_nets[i]->BuildNet(batch_sizes[i], "");
-		trn_nets[i]->batch_labels->allocate_cpu_data();
-	}
-	printf("initialize nets for each gpu (done) ...\n");
-
 	cudaSetDevice(current_gpu_id);
-
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
 	trn_data_param->backend = "lmdb";
 	trn_data_param->batch_size = trn_batch_size;
@@ -2155,6 +2108,52 @@ int main(int argc, char *argv[]) {
 	tst_data_param->mean_file = mean_file;
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
+	tst_batch_samples->N = tst_batch_size;
+	tst_batch_samples->C = tst_data_layer->prefetch_data_->C;
+	tst_batch_samples->H = tst_data_layer->prefetch_data_->H;
+	tst_batch_samples->W = tst_data_layer->prefetch_data_->W;
+	tst_batch_samples->allocate_cpu_data();
+	tst_batch_labels->N = tst_batch_size;
+	tst_batch_labels->C = tst_data_layer->prefetch_label_->C;
+	tst_batch_labels->H = tst_data_layer->prefetch_label_->H;
+	tst_batch_labels->W = tst_data_layer->prefetch_label_->W;
+	tst_batch_labels->allocate_cpu_data();
+
+	vector<Network_t *> trn_nets(gpus.size());
+	vector<Blob_t *> batch_samples_slices(gpus.size());
+	vector<Blob_t *> batch_labels_slices(gpus.size());
+	vector<int> batch_sizes(gpus.size());
+	for(int i = 0; i < gpus.size(); i++) {
+		trn_nets[i] = NULL;
+		batch_samples_slices[i] = NULL;
+		batch_labels_slices[i] = NULL;
+		batch_sizes[i] = 0;
+	}
+	printf("initialize nets for each gpu ...\n");
+	for(int i = 0; i < gpus.size(); i++)
+	{
+		printf("=========== gpu [%d] ==============\n", gpus[i]);
+		cudaSetDevice(gpus[i]);
+
+		batch_sizes[i] = trn_batch_size / gpus.size();
+		batch_samples_slices[i] = new Blob_t();
+		batch_samples_slices[i]->N = batch_sizes[i];
+		batch_samples_slices[i]->C = trn_data_layer->prefetch_data_->C;
+		batch_samples_slices[i]->H = trn_data_layer->prefetch_data_->H;
+		batch_samples_slices[i]->W = trn_data_layer->prefetch_data_->W;
+		batch_samples_slices[i]->allocate_cpu_data();
+		batch_labels_slices[i] = new Blob_t();
+		batch_labels_slices[i]->N = batch_sizes[i];
+		batch_labels_slices[i]->C = trn_data_layer->prefetch_label_->C;
+		batch_labels_slices[i]->H = trn_data_layer->prefetch_label_->H;
+		batch_labels_slices[i]->W = trn_data_layer->prefetch_label_->W;
+		batch_labels_slices[i]->allocate_cpu_data();
+
+		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
+		trn_nets[i]->BuildNet(batch_sizes[i], "");
+		trn_nets[i]->batch_labels->allocate_cpu_data();
+	}
+	printf("initialize nets for each gpu (done) ...\n");
 
 	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
