@@ -2355,14 +2355,31 @@ public:
 	}
 
 	void AddNetParamsDiffFrom(const Network_t *other) {
+		cudaError_t error;
 		AddBlobDiff_gpu(other->conv3->filtersBlob, other->gpu_id, conv3->filtersBlob, gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv3->biasBlob,    other->gpu_id, conv3->biasBlob,    gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv2->filtersBlob, other->gpu_id, conv2->filtersBlob, gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv2->biasBlob,    other->gpu_id, conv2->biasBlob, 	  gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv1->filtersBlob, other->gpu_id, conv1->filtersBlob, gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->conv1->biasBlob,    other->gpu_id, conv1->biasBlob, 	  gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->ip1->filtersBlob,   other->gpu_id, ip1->filtersBlob,   gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 		AddBlobDiff_gpu(other->ip1->biasBlob,      other->gpu_id, ip1->biasBlob, 	  gpu_id);
+		error = cudaGetLastError();
+						printf("AddNetParamsDiffFrom error: %s\n", cudaGetErrorString(error));
 	}
 
 	void ClearNetParamsDiff() {
@@ -3025,24 +3042,14 @@ int main(int argc, char *argv[]) {
 		printf("epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n",
 				epoch, tst_loss, tst_acc);
 
-		cudaError_t error;
-		error = cudaGetLastError();
-		printf("error after tst net: %s\n", cudaGetErrorString(error));
-
 		// training net
 		for(int iter = 0; iter < num_trn_iters; iter++) {
 			trn_data_layer->Forward_to_Network_multi(gpus, batch_sizes, batch_samples_slices, batch_labels_slices);
-
-			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			// copy trn_net params into trn_nets_i
 			for(int i = 0; i < gpus.size(); i++) {
 				trn_nets[i]->CopyNetParamsFrom(tst_net);
 			}
-
-			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			for(int i = 0; i < gpus.size(); i++) {
 				ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
@@ -3053,19 +3060,11 @@ int main(int argc, char *argv[]) {
 			}
 			cudaDeviceSynchronize();
 
-
-			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
-
 			printf("clear net params diff.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
 			printf("clear net params diff(done).\n");
 			cudaDeviceSynchronize();
-
-
-			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			printf("add trn_net_i params diff into tst_net.\n");
 			cudaSetDevice(current_gpu_id);
