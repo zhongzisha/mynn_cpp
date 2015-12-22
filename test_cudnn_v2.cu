@@ -550,13 +550,15 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 		float *temp_data = NULL;
 		float *dst_temp_data = NULL;
 		cudaSetDevice(src_gpu_id);
-		CUDA_CHECK( cudaMallocHost((void **)&temp_data, count * sizeof(float)) );
+		// CUDA_CHECK( cudaMallocHost((void **)&temp_data, count * sizeof(float)) );
+		temp_data = (float*)malloc(count * sizeof(float));
 		CUDA_CHECK( cudaMemcpy(temp_data, src->diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 		cudaSetDevice(dst_gpu_id);
 		CUDA_CHECK( cudaMalloc((void **)&dst_temp_data, count * sizeof(float)) );
 		CUDA_CHECK( cudaMemcpy(dst_temp_data, temp_data, count * sizeof(float), cudaMemcpyHostToDevice) );
 		gpu_add(count, dst_temp_data, dst->diff_gpu, dst->diff_gpu);
-		CUDA_CHECK( cudaFreeHost(temp_data) );
+		// CUDA_CHECK( cudaFreeHost(temp_data) );
+		free(temp_data); temp_data = NULL;
 		CUDA_CHECK( cudaFree(dst_temp_data) );
 	}
 	printf("AddBlobDiff_gpu(done).\n");
@@ -2133,8 +2135,7 @@ int main(int argc, char *argv[]) {
 	for(int i = 0; i < gpus.size(); i++)
 	{
 		printf("=========== gpu [%d] ==============\n", gpus[i]);
-		cudaSetDevice(gpus[i]);
-
+		cudaSetDevice(current_gpu_id);
 		batch_sizes[i] = trn_batch_size / gpus.size();
 		batch_samples_slices[i] = new Blob_t();
 		batch_samples_slices[i]->N = batch_sizes[i];
@@ -2149,6 +2150,7 @@ int main(int argc, char *argv[]) {
 		batch_labels_slices[i]->W = trn_data_layer->prefetch_label_->W;
 		batch_labels_slices[i]->allocate_cpu_data();
 
+		cudaSetDevice(gpus[i]);
 		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
 		trn_nets[i]->BuildNet(batch_sizes[i], "");
 		trn_nets[i]->batch_labels->allocate_cpu_data();
