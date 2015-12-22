@@ -1657,6 +1657,7 @@ public:
 
 	void UpdateNet() {
 		cudaSetDevice(gpu_id);
+		printf("gpuid: %d\n", gpu_id);
 		gpu_axpy(cublas_handle, conv1->filtersBlob->count(), float(-1), conv1->filtersBlob->diff_gpu, conv1->filtersBlob->data_gpu);
 		gpu_axpy(cublas_handle, conv1->biasBlob->count(), float(-1), conv1->biasBlob->diff_gpu, conv1->biasBlob->data_gpu);
 		gpu_axpy(cublas_handle, ip1->filtersBlob->count(), float(-1), ip1->filtersBlob->diff_gpu, ip1->filtersBlob->data_gpu);
@@ -2288,9 +2289,9 @@ int main(int argc, char *argv[]) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
 
-			printf("update the net.\n");
+			printf("update the net (gpuid=%d).\n", current_gpu_id);
 			cudaSetDevice(current_gpu_id);
-			//tst_net->UpdateNet();
+			tst_net->UpdateNet();
 			printf("update the net(done).\n");
 		}
 	}
