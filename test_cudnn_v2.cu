@@ -3024,6 +3024,7 @@ int main(int argc, char *argv[]) {
 		thread_data[i].batch_labels = batch_labels_slices[i];
 	}
 
+	cudaError_t error;
 	int num_tst_iters = floor(10000 / tst_batch_size);
 	int num_trn_iters = floor(50000 / trn_batch_size);
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
