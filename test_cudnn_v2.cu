@@ -502,6 +502,8 @@ public:
 		int count = N * C * H * W;
 		if(data_cpu == NULL)
 			MallocHost((void**)&data_cpu, count * sizeof(float));
+		if(data_cpu == NULL)
+			printf("malloc host is failed. count=%d\n", count);
 		if(data_gpu != NULL)
 			CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 	}
