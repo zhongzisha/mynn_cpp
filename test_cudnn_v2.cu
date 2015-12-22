@@ -2103,7 +2103,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	if(trn_batch_size % gpus.size() != 0) {
+		printf("trn_batch_size: %d\n", trn_batch_size);
+		printf("number of given gpus: %d \n", gpus.size());
 		printf("trn_batch_size must be times of the number of given gpus.\n");
+		return -1;
 	}
 
 	cudaSetDevice(current_gpu_id);
