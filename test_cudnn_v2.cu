@@ -2293,14 +2293,31 @@ public:
 
 	void UpdateNet() {
 		cudaSetDevice(gpu_id);
+		cudaError_t error;
 		gpu_axpy(cublas_handle, conv3->filtersBlob->count(), float(-1), conv3->filtersBlob->diff_gpu, conv3->filtersBlob->data_gpu);
+		error = cudaGetLastError();
+		printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv3->biasBlob->count(), 	 float(-1), conv3->biasBlob->diff_gpu, 	  conv3->biasBlob->data_gpu);
+		error = cudaGetLastError();
+				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv2->filtersBlob->count(), float(-1), conv2->filtersBlob->diff_gpu, conv2->filtersBlob->data_gpu);
+		error = cudaGetLastError();
+				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv2->biasBlob->count(), 	 float(-1), conv2->biasBlob->diff_gpu, 	  conv2->biasBlob->data_gpu);
+		error = cudaGetLastError();
+				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv1->filtersBlob->count(), float(-1), conv1->filtersBlob->diff_gpu, conv1->filtersBlob->data_gpu);
+		error = cudaGetLastError();
+				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv1->biasBlob->count(), 	 float(-1), conv1->biasBlob->diff_gpu,    conv1->biasBlob->data_gpu);
+		error = cudaGetLastError();
+				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, ip1->filtersBlob->count(),   float(-1), ip1->filtersBlob->diff_gpu,   ip1->filtersBlob->data_gpu);
+		error = cudaGetLastError();
+				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, ip1->biasBlob->count(), 	 float(-1), ip1->biasBlob->diff_gpu,      ip1->biasBlob->data_gpu);
+		error = cudaGetLastError();
+				printf("error: %s\n", cudaGetErrorString(error));
 	}
 
 	void SaveNetParams(int epoch) {
@@ -3024,11 +3041,13 @@ int main(int argc, char *argv[]) {
 			for(int i = 0; i < gpus.size(); i++) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
+			cudaDeviceSynchronize();
 
 			printf("clear net params diff.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
 			printf("clear net params diff(done).\n");
+			cudaDeviceSynchronize();
 
 			printf("add trn_net_i params diff into tst_net.\n");
 			cudaSetDevice(current_gpu_id);
@@ -3036,11 +3055,13 @@ int main(int argc, char *argv[]) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
 			printf("add trn_net_i params diff into tst_net(done).\n");
+			cudaDeviceSynchronize();
 
 			printf("update tst_net params.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
 			printf("update tst_net params(done).\n");
+			cudaDeviceSynchronize();
 		}
 	}
 
