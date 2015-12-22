@@ -1,0 +1,10 @@
+*.mexa64
+*~
+results_*
+*_lmdb/
+*.binaryproto
+.project
+.cproject
+*.exe
+*.mat
+*.log
