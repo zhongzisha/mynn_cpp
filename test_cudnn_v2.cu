@@ -2212,6 +2212,7 @@ int main(int argc, char *argv[]) {
 			}
 			printf("update the net.\n");
 			tst_net->UpdateNet();
+			printf("update the net(done).\n");
 		}
 	}
 
