@@ -696,7 +696,7 @@ public:
 		CreatePrefetchThread();
 	}
 
-	void Forward_to_Network_multi(vector<Blob_t *> &top_data, vector<Blob_t *> &top_label, vector<int> &batch_sizes) {
+	void Forward_to_Network_multi(vector<int> &gpus, vector<int> &batch_sizes, vector<Blob_t *> &top_data, vector<Blob_t *> &top_label) {
 		JoinPrefetchThread();
 
 		for(int i = 0; i < batch_sizes.size(); i++) {
@@ -705,6 +705,7 @@ public:
 				start_index += batch_sizes[j];
 			}
 
+			cudaSetDevice(gpus[i]);
 			CUDA_CHECK( cudaMemcpy(top_data[i]->data_gpu,
 					prefetch_data_->data_cpu + start_index * top_data[i]->C * top_data[i]->H * top_data[i]->W,
 					top_data[i]->count() * sizeof(float), cudaMemcpyDefault) );
@@ -1956,6 +1957,7 @@ public:
 		batch_samples->allocate_gpu_data();
 		batch_samples->allocate_gpu_diff();
 		batch_labels->allocate_gpu_data();
+		batch_labels->allocate_cpu_data();
 
 		printf("conv1 setup.\n");
 		conv1_top = new Blob_t();
@@ -2381,7 +2383,6 @@ void do_slave(void *data_)
 	// CUDA_CHECK( cudaMemcpy(data->net->batch_labels->data_gpu, data->batch_labels->data_cpu, data->batch_labels->count() * sizeof(float), cudaMemcpyHostToDevice) );
 	float trn_loss, trn_acc;
 	data->net->ForwardBackward(&trn_loss, &trn_acc);
-	// printf("trn_loss: %.6f\n", trn_loss);
 	data->net->ComputeUpdateValue(data->lr_rate, data->momentum, data->weight_decay);
 }
 
@@ -2822,11 +2823,9 @@ int main_single_gpu_ok(int argc, char **argv) {
 
 	Network_t *trn_net = new Network_t("trn_net", current_gpu_id);
 	trn_net->BuildNet(trn_batch_size, "");
-	trn_net->batch_labels->allocate_cpu_data();
 
 	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
-	tst_net->batch_labels->allocate_cpu_data();
 
 	int num_tst_iters = floor(10000 / tst_batch_size);
 	int num_trn_iters = floor(50000 / trn_batch_size);
@@ -2962,11 +2961,8 @@ int main(int argc, char *argv[]) {
 		printf("=========== gpu [%d] ==============\n", gpus[i]);
 		cudaSetDevice(current_gpu_id);
 		batch_sizes[i] = trn_batch_size / gpus.size();
-
-		cudaSetDevice(gpus[i]);
 		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
 		trn_nets[i]->BuildNet(batch_sizes[i], "");
-		trn_nets[i]->batch_labels->allocate_cpu_data();
 
 		batch_samples_slices[i] = trn_nets[i]->batch_samples;
 		batch_labels_slices[i] = trn_nets[i]->batch_labels;
@@ -2976,7 +2972,6 @@ int main(int argc, char *argv[]) {
 	cudaSetDevice(current_gpu_id);
 	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
-	tst_net->batch_labels->allocate_cpu_data();
 
 	pthread_t *threads;
 	pthread_attr_t pta;
@@ -3014,7 +3009,7 @@ int main(int argc, char *argv[]) {
 
 		// training net
 		for(int iter = 0; iter < num_trn_iters; iter++) {
-			trn_data_layer->Forward_to_Network_multi(batch_samples_slices, batch_labels_slices, batch_sizes);
+			trn_data_layer->Forward_to_Network_multi(gpus, batch_sizes, batch_samples_slices, batch_labels_slices);
 
 			// copy trn_net params into trn_nets_i
 			for(int i = 0; i < gpus.size(); i++) {
@@ -3029,24 +3024,19 @@ int main(int argc, char *argv[]) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
 
-			// printf("now, synchronize the threads.\n");
 			cudaDeviceSynchronize();
 
-			// printf("clear net params diff in tst_net.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
 			cudaDeviceSynchronize();
 
-			// printf("copy update values from each sub nets to the main net.\n");
 			cudaSetDevice(current_gpu_id);
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
 
-			// printf("update the net.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
-			// printf("update the net(done).\n");
 		}
 	}
 
