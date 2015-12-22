@@ -3025,19 +3025,22 @@ int main(int argc, char *argv[]) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
 
-			cudaDeviceSynchronize();
-
+			printf("clear net params diff.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
-			cudaDeviceSynchronize();
+			printf("clear net params diff(done).\n");
 
+			printf("add trn_net_i params diff into tst_net.\n");
 			cudaSetDevice(current_gpu_id);
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
+			printf("add trn_net_i params diff into tst_net(done).\n");
 
+			printf("update tst_net params.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
+			printf("update tst_net params(done).\n");
 		}
 	}
 
