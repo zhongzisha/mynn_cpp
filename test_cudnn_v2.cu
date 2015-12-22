@@ -2211,7 +2211,7 @@ int main(int argc, char *argv[]) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
 			printf("update the net.\n");
-			tst_net->UpdateNet();
+			// tst_net->UpdateNet();
 			printf("update the net(done).\n");
 		}
 	}
