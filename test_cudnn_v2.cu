@@ -3057,6 +3057,9 @@ int main(int argc, char *argv[]) {
 			printf("add trn_net_i params diff into tst_net(done).\n");
 			cudaDeviceSynchronize();
 
+			cudaError_t error;
+			error = cudaGetLastError();
+			printf("epoch[%d],iter[%d]: %s\n", cudaGetErrorString(error));
 
 			if(epoch==0 && iter==0) {
 				tst_net->SaveNetParams(0);
@@ -3071,7 +3074,10 @@ int main(int argc, char *argv[]) {
 			if(epoch==0 && iter==0) {
 				tst_net->SaveNetParams(1);
 			}
+
+			break;
 		}
+		break;
 	}
 
 	for(int i = 0; i < gpus.size(); i++) {
