@@ -158,6 +158,14 @@ const char* cublasGetErrorString(cublasStatus_t error) {
 		}
 
 
+inline void MallocHost(void** ptr, size_t size) {
+  *ptr = malloc(size);
+}
+
+inline void FreeHost(void* ptr) {
+  free(ptr);
+}
+
 void EnableP2P(vector<int> gpus)
 {
 	// check p2p access
@@ -318,7 +326,7 @@ public:
 	{
 		if(data_cpu != NULL)
 		{
-			CUDA_CHECK( cudaFreeHost(data_cpu) );
+			FreeHost(data_cpu);
 			data_cpu = NULL;
 		}
 		if(data_gpu != NULL)
@@ -328,7 +336,7 @@ public:
 		}
 		if(diff_cpu != NULL)
 		{
-			CUDA_CHECK( cudaFreeHost(diff_cpu) );
+			FreeHost(diff_cpu);
 			diff_cpu = NULL;
 		}
 		if(diff_gpu != NULL)
@@ -454,18 +462,18 @@ public:
 	{
 		int count = N * C * H * W;
 		if(data_cpu != NULL)
-			CUDA_CHECK( cudaFreeHost(data_cpu) );
-		CUDA_CHECK( cudaMallocHost((void**)&data_cpu, count * sizeof(float)) );
-		CUDA_CHECK( cudaMemset(data_cpu, 0, count * sizeof(float)) );
+			FreeHost(data_cpu);
+		MallocHost((void**)&data_cpu, count * sizeof(float));
+		cpu_set(count, 0, data_cpu);
 	}
 
 	void allocate_cpu_diff()
 	{
 		int count = N * C * H * W;
 		if(diff_cpu != NULL)
-			CUDA_CHECK( cudaFreeHost(diff_cpu) );
-		CUDA_CHECK( cudaMallocHost((void**)&diff_cpu, count * sizeof(float)) );
-		CUDA_CHECK( cudaMemset(diff_cpu, 0, count * sizeof(float)) );
+			FreeHost(diff_cpu);
+		MallocHost((void**)&diff_cpu, count * sizeof(float));
+		cpu_set(count, 0, data_cpu);
 	}
 
 	/*
@@ -493,7 +501,7 @@ public:
 	{
 		int count = N * C * H * W;
 		if(data_cpu == NULL)
-			CUDA_CHECK( cudaMallocHost((void**)&data_cpu, count * sizeof(float)) );
+			MallocHost((void**)&data_cpu, count * sizeof(float));
 		if(data_gpu != NULL)
 			CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 	}
@@ -502,7 +510,7 @@ public:
 	{
 		int count = N * C * H * W;
 		if(diff_cpu == NULL)
-			CUDA_CHECK( cudaMallocHost((void**)&diff_cpu, count * sizeof(float)) );
+			MallocHost((void**)&diff_cpu, count * sizeof(float));
 		if(diff_gpu != NULL)
 			CUDA_CHECK( cudaMemcpy(diff_cpu, diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 	}
@@ -539,11 +547,11 @@ void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gp
 		} else {
 			float *temp_data = NULL;
 			cudaSetDevice(src_gpu_id);
-			cudaMallocHost((void **)&temp_data, count * sizeof(float));
+			MallocHost((void **)&temp_data, count * sizeof(float));
 			cudaMemcpy(temp_data, src->data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost);
 			cudaSetDevice(dst_gpu_id);
 			cudaMemcpy(dst->data_gpu, temp_data, count * sizeof(float), cudaMemcpyHostToDevice);
-			cudaFreeHost(temp_data);
+			FreeHost(temp_data);
 		}
 	}
 }
@@ -568,14 +576,14 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 			float *temp_data = NULL;
 			float *dst_temp_data = NULL;
 			cudaSetDevice(src_gpu_id);
-			CUDA_CHECK( cudaMallocHost((void **)&temp_data, count * sizeof(float)) );
+			MallocHost((void **)&temp_data, count * sizeof(float));
 			// temp_data = (float*)malloc(count * sizeof(float));
 			CUDA_CHECK( cudaMemcpy(temp_data, src->diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 			cudaSetDevice(dst_gpu_id);
 			CUDA_CHECK( cudaMalloc((void **)&dst_temp_data, count * sizeof(float)) );
 			CUDA_CHECK( cudaMemcpy(dst_temp_data, temp_data, count * sizeof(float), cudaMemcpyHostToDevice) );
 			gpu_add(count, dst_temp_data, dst->diff_gpu, dst->diff_gpu);
-			CUDA_CHECK( cudaFreeHost(temp_data) );
+			FreeHost(temp_data);
 			// free(temp_data); temp_data = NULL;
 			CUDA_CHECK( cudaFree(dst_temp_data) );
 		}
@@ -2752,7 +2760,7 @@ int main_test_memcpy(int argc, char **argv) {
 
 	int N = 64;
 	float *data_h = NULL;
-	CUDA_CHECK( cudaMallocHost((void **)&data_h, N * sizeof(float)) );
+	MallocHost((void **)&data_h, N * sizeof(float));
 	for(int i = 0; i < N; i++) {
 		data_h[i] = (float)rand() / (float)RAND_MAX;
 	}
@@ -2798,7 +2806,7 @@ int main_test_memcpy(int argc, char **argv) {
 	cudaSetDevice(1);
 	CUDA_CHECK( cudaFree(data_d) );
 	CUDA_CHECK( cudaFree(data_d_copy) );
-	CUDA_CHECK( cudaFreeHost(data_h) );
+	FreeHost(data_h);
 	delete[] data_h2;
 	cudaDeviceReset();
 	return 0;
