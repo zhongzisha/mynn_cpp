@@ -2157,6 +2157,7 @@ int main(int argc, char *argv[]) {
 	}
 	printf("initialize nets for each gpu (done) ...\n");
 
+	cudaSetDevice(current_gpu_id);
 	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 	tst_net->batch_labels->allocate_cpu_data();
