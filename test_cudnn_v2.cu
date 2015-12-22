@@ -508,12 +508,10 @@ void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gp
 		cudaGetDeviceProperties(&prop[1], dst_gpu_id);
 		int can_access_peer;
 		cudaDeviceCanAccessPeer(&can_access_peer, src_gpu_id, dst_gpu_id);
-		if(can_access_peer) {
-			const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
-			if(has_uva) {
-				cudaMemcpy(dst->data_gpu, src->data_gpu, count * sizeof(float), cudaMemcpyDefault);
-				return;
-			}
+		const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
+		if(can_access_peer || has_uva) {
+			cudaMemcpy(dst->data_gpu, src->data_gpu, count * sizeof(float), cudaMemcpyDefault);
+			return;
 		} else {
 			float *temp_data = NULL;
 			cudaSetDevice(src_gpu_id);
@@ -2040,7 +2038,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 
 int main(int argc, char **argv) {
 
-	int N = 128;
+	int N = 64;
 	float *data_h = new float[N];
 	for(int i = 0; i < N; i++) {
 		data_h[i] = (float)rand() / (float)RAND_MAX;
@@ -2056,10 +2054,33 @@ int main(int argc, char **argv) {
 
 	float *data_h2 = new float[N];
 	CUDA_CHECK( cudaMemcpy(data_h2, data_d_copy, N * sizeof(float), cudaMemcpyDeviceToHost) );
+	bool isyes = true;
 	for(int i = 0; i < N; i++) {
-		printf("%d: %.6f, %.6f\n", i, data_h[i], data_h2[i]);
+		if(abs(data_h[i] - data_h2[i]) > 1e-6) {
+			isyes = false;
+			break;
+		}
 	}
+	printf("data_h %s data_h2\n", isyes ? "==" : "!=");
 
+	cudaSetDevice(2);
+	float *gpu2_data_d = NULL;
+	CUDA_CHECK( cudaMalloc((void**)&gpu2_data_d, N *sizeof(float)) );
+	CUDA_CHECK( cudaMemcpy(gpu2_data_d, data_d, N * sizeof(float), cudaMemcpyDefault) );
+	CUDA_CHECK( cudaMemcpy(data_h2, data_d_copy, N * sizeof(float), cudaMemcpyDeviceToHost) );
+	isyes = true;
+	for(int i = 0; i < N; i++) {
+		if(abs(data_h[i] - data_h2[i]) > 1e-6) {
+			isyes = false;
+			break;
+		}
+	}
+	printf("data_h %s data_h2\n", isyes ? "==" : "!=");
+
+	cudaSetDevice(2);
+	CUDA_CHECK( cudaFree(gpu2_data_d) );
+
+	cudaSetDevice(1);
 	CUDA_CHECK( cudaFree(data_d) );
 	CUDA_CHECK( cudaFree(data_d_copy) );
 	delete[] data_h;
