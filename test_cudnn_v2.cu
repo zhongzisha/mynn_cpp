@@ -3057,11 +3057,20 @@ int main(int argc, char *argv[]) {
 			printf("add trn_net_i params diff into tst_net(done).\n");
 			cudaDeviceSynchronize();
 
+
+			if(epoch==0 && iter==0) {
+				tst_net->SaveNetParams(0);
+			}
+
 			printf("update tst_net params.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
 			printf("update tst_net params(done).\n");
 			cudaDeviceSynchronize();
+
+			if(epoch==0 && iter==0) {
+				tst_net->SaveNetParams(1);
+			}
 		}
 	}
 
