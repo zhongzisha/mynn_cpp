@@ -254,6 +254,10 @@ void gpu_copy(const int N, const float *X, float *Y) {
 	CUDA_CHECK( cudaMemcpy(Y, X, sizeof(float) * N, cudaMemcpyDefault) );
 }
 
+void gpu_asum(cublasHandle_t cublashandle, const int n, const float* x, float* y) {
+  CUBLAS_CHECK(cublasSasum(cublashandle, n, x, 1, y));
+}
+
 void gpu_scal(cublasHandle_t cublashandle, const int N, const float alpha, float *X) {
 	CUBLAS_CHECK( cublasSscal(cublashandle, N, &alpha, X, 1) );
 }
@@ -389,9 +393,9 @@ public:
 		}
 	}
 
-	void save_cpu_data_and_diff_to_mat(const char *fname)
+	void save_cpu_data_and_diff_to_mat(const char *fname, bool is_save_diff = false)
 	{
-		// save results into matlab format
+		data_to_cpu();
 		mat_t *matfp = Mat_Create(fname, 0);
 		//matfp = Mat_CreateVer(fname, 0, MAT_FT_MAT73);
 		size_t dims[4];
@@ -399,24 +403,28 @@ public:
 		dims[1] = H;
 		dims[2] = C;
 		dims[3] = N;
-		matvar_t *matvar, *matvar2;
+		matvar_t *matvar;
 		// save data
-		{
-			matvar = Mat_VarCreate("data", matio_class_map<float>(), matio_type_map<float>(), 4, dims, data_cpu, 0);
-			if(matvar == NULL)
-				cout << "Error creating 'data' variable";
+		matvar = Mat_VarCreate("data", matio_class_map<float>(), matio_type_map<float>(), 4, dims, data_cpu, 0);
+		if(matvar == NULL)
+			cout << "Error creating 'data' variable";
+		if(Mat_VarWrite(matfp, matvar, MAT_COMPRESSION_NONE) != 0)
+			cout << "Error saving array 'data' into MAT file " << fname;
+		Mat_VarFree(matvar);
+
+		// save diff
+		if(is_save_diff) {
+			diff_to_cpu();
+
+			matvar_t *matvar2;
 			matvar2 = Mat_VarCreate("diff", matio_class_map<float>(), matio_type_map<float>(), 4, dims, diff_cpu, 0);
 			if(matvar2 == NULL)
 				cout << "Error creating 'diff' variable";
-			if(Mat_VarWrite(matfp, matvar, MAT_COMPRESSION_NONE) != 0)
-				cout << "Error saving array 'data' into MAT file " << fname;
-
 			if(Mat_VarWrite(matfp, matvar2, MAT_COMPRESSION_NONE) != 0)
 				cout << "Error saving array 'diff' into MAT file " << fname;
-
-			Mat_VarFree(matvar);
 			Mat_VarFree(matvar2);
 		}
+
 		Mat_Close(matfp);
 	}
 
@@ -654,6 +662,17 @@ public:
 		CreatePrefetchThread();
 	}
 
+	void Forward_to_Network(Blob_t *top_data, Blob_t *top_label) {
+
+		JoinPrefetchThread();
+
+		CUDA_CHECK( cudaMemcpy(top_data->data_gpu, prefetch_data_->data_cpu, prefetch_data_->count() * sizeof(float), cudaMemcpyDefault) );
+
+		CUDA_CHECK( cudaMemcpy(top_label->data_gpu, prefetch_label_->data_cpu, prefetch_label_->count() * sizeof(float), cudaMemcpyDefault) );
+
+		CreatePrefetchThread();
+	}
+
 	void Forward_cpu_multi(vector<Blob_t *> &top_data, vector<Blob_t *> &top_label, vector<int> &batch_sizes) {
 		// printf("First, join the thread.\n");
 		JoinPrefetchThread();
@@ -670,10 +689,30 @@ public:
 
 			// printf("copy label to top_label.\n");
 			memcpy(top_label[i]->data_cpu,
-					prefetch_label_->data_cpu + start_index * top_data[i]->C * top_data[i]->H * top_data[i]->W,
+					prefetch_label_->data_cpu + start_index * top_label[i]->C * top_label[i]->H * top_label[i]->W,
 					top_label[i]->count() * sizeof(float));
 		}
 		// printf("Start a new prefetch thread.\n");
+		CreatePrefetchThread();
+	}
+
+	void Forward_to_Network_multi(vector<Blob_t *> &top_data, vector<Blob_t *> &top_label, vector<int> &batch_sizes) {
+		JoinPrefetchThread();
+
+		for(int i = 0; i < batch_sizes.size(); i++) {
+			int start_index = 0;
+			for(int j = 0; j < i; j++) {
+				start_index += batch_sizes[j];
+			}
+
+			CUDA_CHECK( cudaMemcpy(top_data[i]->data_gpu,
+					prefetch_data_->data_cpu + start_index * top_data[i]->C * top_data[i]->H * top_data[i]->W,
+					top_data[i]->count() * sizeof(float), cudaMemcpyDefault) );
+
+			CUDA_CHECK( cudaMemcpy(top_label[i]->data_gpu,
+					prefetch_label_->data_cpu + start_index * top_label[i]->C * top_label[i]->H * top_label[i]->W,
+					top_label[i]->count() * sizeof(float), cudaMemcpyDefault) );
+		}
 		CreatePrefetchThread();
 	}
 
@@ -1296,6 +1335,204 @@ public:
 	}
 };
 
+__global__ void SoftmaxLossForwardGPU(const int nthreads,
+		const float* prob_data, const float* label, float* loss,
+		const int num, const int dim, const int spatial_dim,
+		const bool has_ignore_label_, const int ignore_label_,
+		float* counts) {
+	CUDA_KERNEL_LOOP(index, nthreads) {
+		const int n = index / spatial_dim;
+		const int s = index % spatial_dim;
+		const int label_value = static_cast<int>(label[n * spatial_dim + s]);
+		if (has_ignore_label_ && label_value == ignore_label_) {
+			loss[index] = 0;
+			counts[index] = 0;
+		} else {
+			loss[index] = -log(max(prob_data[n * dim + label_value * spatial_dim + s],
+					float(FLT_MIN)));
+			counts[index] = 1;
+		}
+	}
+}
+
+__global__ void SoftmaxLossBackwardGPU(const int nthreads, const float* top,
+		const float* label, float* bottom_diff, const int num, const int dim,
+		const int spatial_dim, const bool has_ignore_label_,
+		const int ignore_label_, float* counts) {
+	const int channels = dim / spatial_dim;
+
+	CUDA_KERNEL_LOOP(index, nthreads) {
+		const int n = index / spatial_dim;
+		const int s = index % spatial_dim;
+		const int label_value = static_cast<int>(label[n * spatial_dim + s]);
+
+		if (has_ignore_label_ && label_value == ignore_label_) {
+			for (int c = 0; c < channels; ++c) {
+				bottom_diff[n * dim + c * spatial_dim + s] = 0;
+			}
+			counts[index] = 0;
+		} else {
+			bottom_diff[n * dim + label_value * spatial_dim + s] -= 1;
+			counts[index] = 1;
+		}
+	}
+}
+
+class SoftmaxWithLossParameter_t
+{
+public:
+	cudnnSoftmaxAlgorithm_t cudnn_softmax_algo;
+	cudnnSoftmaxMode_t cudnn_softmax_mode;
+	bool has_ignore_label;
+	int ignore_label;
+	bool normalize;
+};
+
+class SoftmaxWithLossLayer_t : public Layer_t
+{
+public:
+	cublasHandle_t cublashandle;
+	SoftmaxWithLossParameter_t *cudnn_softmaxwithloss_params;
+	Blob_t *prob_;
+	/// Whether to ignore instances with a certain label.
+	bool has_ignore_label_;
+	/// The label indicating that an instance should be ignored.
+	int ignore_label_;
+	/// Whether to normalize the loss by the total number of values present
+	/// (otherwise just by the batch size).
+	bool normalize_;
+
+	SoftmaxWithLossLayer_t(const SoftmaxWithLossParameter_t *cudnn_softmaxwithloss_params_) {
+		cudnn_softmaxwithloss_params = const_cast<SoftmaxWithLossParameter_t *>(cudnn_softmaxwithloss_params_);
+		cublashandle = NULL;
+		CUBLAS_CHECK( cublasCreate(&cublashandle) );
+		prob_ = NULL;
+		has_ignore_label_ = false;
+		ignore_label_ = -1;
+		normalize_ = false;
+	}
+
+	~SoftmaxWithLossLayer_t() {
+		CUBLAS_CHECK( cublasDestroy(cublashandle) );
+	}
+
+	void Setup(const Blob_t *bottom, Blob_t *top) {
+		CUDNN_CHECK( cudnnSetTensor4dDescriptor(bottomTensorDesc,
+				tensorFormat,
+				dataType,
+				bottom->N,
+				bottom->C,
+				bottom->H,
+				bottom->W) );
+
+		prob_ = top;
+		prob_->N = bottom->N;
+		prob_->C = bottom->C;
+		prob_->H = bottom->H;
+		prob_->W = bottom->W;
+		CUDNN_CHECK( cudnnSetTensor4dDescriptor(topTensorDesc,
+				tensorFormat,
+				dataType,
+				prob_->N,
+				prob_->C,
+				prob_->H,
+				prob_->W) );
+
+		prob_->allocate_gpu_data();
+		prob_->allocate_gpu_diff();
+
+		if(cudnn_softmaxwithloss_params->has_ignore_label)
+			has_ignore_label_ = cudnn_softmaxwithloss_params->has_ignore_label;
+		if(has_ignore_label_)
+			ignore_label_ = cudnn_softmaxwithloss_params->ignore_label;
+		normalize_ = cudnn_softmaxwithloss_params->normalize;
+
+	}
+
+	void Forward(const Blob_t *bottom, const Blob_t *label, Blob_t *top, float *loss) {
+		float alpha = (float)1.0f;
+		float beta = (float)0.0f;
+		CUDNN_CHECK( cudnnSoftmaxForward(cudnnHandle,
+				cudnn_softmaxwithloss_params->cudnn_softmax_algo ,
+				cudnn_softmaxwithloss_params->cudnn_softmax_mode,
+				&alpha,
+				bottomTensorDesc,
+				bottom->data_gpu,
+				&beta,
+				topTensorDesc,
+				top->data_gpu) );
+
+		prob_ = top;
+
+		const float* prob_data = prob_->data_gpu;
+		const float* label_data = label->data_gpu;
+		const int num = prob_->N;
+		const int dim = prob_->count() / num;
+		const int spatial_dim = prob_->H * prob_->W;
+		const int nthreads = num * spatial_dim;
+		// Since this memory is not used for anything until it is overwritten
+		// on the backward pass, we use it here to avoid having to allocate new GPU
+		// memory to accumulate intermediate results in the kernel.
+		float* loss_data = bottom->diff_gpu;
+		// Similarly, this memory is never used elsewhere, and thus we can use it
+		// to avoid having to allocate additional GPU memory.
+		float* counts = prob_->diff_gpu;
+		// NOLINT_NEXT_LINE(whitespace/operators)
+		SoftmaxLossForwardGPU<<<GPU_GET_BLOCKS(nthreads),
+				GPU_CUDA_NUM_THREADS>>>(nthreads, prob_data, label_data, loss_data,
+						num, dim, spatial_dim, has_ignore_label_, ignore_label_, counts);
+		gpu_asum(cublashandle, nthreads, loss_data, loss);
+		if (normalize_) {
+			float count;
+			gpu_asum(cublashandle, nthreads, counts, &count);
+			*loss /= count;
+		} else {
+			*loss /= num;
+		}
+	}
+
+	void Backward(const Blob_t *top, const Blob_t *label, Blob_t *bottom) {
+//		float alpha = (float)1.0f;
+//		float beta = (float)0.0f;
+//		CUDNN_CHECK( cudnnSoftmaxBackward( cudnnHandle,
+//				cudnn_softmax_params->cudnn_softmax_algo ,
+//				cudnn_softmax_params->cudnn_softmax_mode,
+//				&alpha,
+//				topTensorDesc,
+//				top->data_gpu,
+//				topTensorDesc,
+//				top->diff_gpu,
+//				&beta,
+//				bottomTensorDesc,
+//				bottom->diff_gpu) );
+
+		float* bottom_diff = bottom->diff_gpu;
+		const float* prob_data = prob_->data_gpu;
+		const float* top_data = top->data_gpu;
+		gpu_copy(prob_->count(), prob_data, bottom_diff);
+		const float* label_data = label->data_gpu;
+		const int num = prob_->N;
+		const int dim = prob_->count() / num;
+		const int spatial_dim = prob_->H * prob_->W;
+		const int nthreads = num * spatial_dim;
+		// Since this memory is never used for anything else,
+		// we use to to avoid allocating new GPU memory.
+		float* counts = prob_->diff_gpu;
+		// NOLINT_NEXT_LINE(whitespace/operators)
+		SoftmaxLossBackwardGPU<<<GPU_GET_BLOCKS(nthreads),
+				GPU_CUDA_NUM_THREADS>>>(nthreads, top_data, label_data, bottom_diff,
+						num, dim, spatial_dim, has_ignore_label_, ignore_label_, counts);
+		const float loss_weight = float(1.0f);
+		if (normalize_) {
+			float count;
+			gpu_asum(cublashandle, nthreads, counts, &count);
+			gpu_scal(cublashandle, prob_->count(), loss_weight / count, bottom_diff);
+		} else {
+			gpu_scal(cublashandle, prob_->count(), loss_weight / num, bottom_diff);
+		}
+	}
+};
+
 class MultinomialLogisticLossParameter_t
 {
 public:
@@ -1355,6 +1592,127 @@ public:
 	}
 };
 
+class ArgMaxParameter_t
+{
+public:
+	bool out_max_val;
+	int top_k;
+};
+
+class ArgMaxLayer_t
+{
+public:
+	ArgMaxParameter_t *argmax_params;
+	ArgMaxLayer_t(const ArgMaxParameter_t *argmax_params_) {
+		argmax_params = const_cast<ArgMaxParameter_t *>(argmax_params_);
+	}
+
+	~ArgMaxLayer_t() {
+
+	}
+
+	void Setup(const Blob_t *bottom, Blob_t *top) {
+		top->N = bottom->N;
+		top->C = 2;
+		top->H = argmax_params->top_k;
+		top->W = 1;
+
+		top->allocate_cpu_data();
+	}
+
+	void Forward_cpu(Blob_t *bottom, Blob_t *top) {
+
+		bottom->data_to_cpu();
+
+		const float* bottom_data = bottom->data_cpu;
+		float* top_data = top->data_cpu;
+		int num = bottom->N;
+		int dim = bottom->count() / bottom->N;
+		for (int i = 0; i < num; ++i) {
+			std::vector<std::pair<float, int> > bottom_data_vector;
+			for (int j = 0; j < dim; ++j) {
+				bottom_data_vector.push_back(
+						std::make_pair(bottom_data[i * dim + j], j));
+			}
+			std::partial_sort(
+					bottom_data_vector.begin(), bottom_data_vector.begin() + argmax_params->top_k,
+					bottom_data_vector.end(), std::greater<std::pair<float, int> >());
+			for (int j = 0; j < argmax_params->top_k; ++j) {
+				top_data[top->offset(i, 0, j)] = bottom_data_vector[j].second;
+			}
+			if (argmax_params->out_max_val) {
+				for (int j = 0; j < argmax_params->top_k; ++j) {
+					top_data[top->offset(i, 1, j)] = bottom_data_vector[j].first;
+				}
+			}
+		}
+	}
+};
+
+class AccuracyParameter_t
+{
+public:
+	int top_k;
+};
+
+class AccuracyLayer_t
+{
+public:
+	AccuracyParameter_t *accuracy_params;
+	AccuracyLayer_t(const AccuracyParameter_t *accuracy_params_) {
+		accuracy_params = const_cast<AccuracyParameter_t *>(accuracy_params_);
+	}
+
+	~AccuracyLayer_t() {
+
+	}
+
+	void Setup(const Blob_t *bottom, Blob_t *top) {
+		top->N = 1;
+		top->C = 1;
+		top->H = 1;
+		top->W = 1;
+
+		top->allocate_cpu_data();
+	}
+
+	void Forward_cpu(Blob_t *bottom, Blob_t *label, Blob_t *top) {
+
+		bottom->data_to_cpu();
+		label->data_to_cpu();
+
+		float accuracy = 0;
+		const float* bottom_data = bottom->data_cpu;
+		const float* bottom_label = label->data_cpu;
+		int num = bottom->N;
+		int dim = bottom->count() / bottom->N;
+		vector<float> maxval(accuracy_params->top_k+1);
+		vector<int> max_id(accuracy_params->top_k+1);
+		for (int i = 0; i < num; ++i) {
+			// Top-k accuracy
+			std::vector<std::pair<float, int> > bottom_data_vector;
+			for (int j = 0; j < dim; ++j) {
+				bottom_data_vector.push_back(
+						std::make_pair(bottom_data[i * dim + j], j));
+			}
+			std::partial_sort(
+					bottom_data_vector.begin(), bottom_data_vector.begin() + accuracy_params->top_k,
+					bottom_data_vector.end(), std::greater<std::pair<float, int> >());
+			// check if true label is in top k predictions
+			for (int k = 0; k < accuracy_params->top_k; k++) {
+				if (bottom_data_vector[k].second == static_cast<int>(bottom_label[i])) {
+					++accuracy;
+					break;
+				}
+			}
+		}
+
+		// LOG(INFO) << "Accuracy: " << accuracy;
+		top->data_cpu[0] = accuracy / num;
+		// Accuracy layer should not be used as a loss function.
+	}
+};
+
 class Network_t
 {
 public:
@@ -1380,21 +1738,62 @@ public:
 	PoolingLayer_t *mp1;
 	Blob_t *mp1_top;
 
+	ConvolutionParameter_t *conv2_params;
+	ConvolutionLayer_t *conv2;
+	Blob_t *conv2_top;
+
+	ActivationParameter_t *relu2_params;
+	ActivationLayer_t *relu2;
+	Blob_t *relu2_top;
+
+	PoolingParameter_t *mp2_params;
+	PoolingLayer_t *mp2;
+	Blob_t *mp2_top;
+
+	ConvolutionParameter_t *conv3_params;
+	ConvolutionLayer_t *conv3;
+	Blob_t *conv3_top;
+
+	ActivationParameter_t *relu3_params;
+	ActivationLayer_t *relu3;
+	Blob_t *relu3_top;
+
+	PoolingParameter_t *mp3_params;
+	PoolingLayer_t *mp3;
+	Blob_t *mp3_top;
+
 	FullyConnectedParameter_t *ip1_params;
 	FullyConnectedLayer_t *ip1;
 	Blob_t *ip1_top;
 
-	SoftmaxParameter_t *sm1_params;
-	SoftmaxLayer_t *sm1;
-	Blob_t *sm1_top;
+	// the following softmax layer and multinomial logistic loss layer have been replaced by the softmaxwithloss layer.
+//	SoftmaxParameter_t *sm1_params;
+//	SoftmaxLayer_t *sm1;
+//	Blob_t *sm1_top;
+//
+//	MultinomialLogisticLossParameter_t *mlr1_params;
+//	MultinomialLogisticLossLayer_t *mlr1;
+//	Blob_t *mlr1_top;
 
-	MultinomialLogisticLossParameter_t *mlr1_params;
-	MultinomialLogisticLossLayer_t *mlr1;
-	Blob_t *mlr1_top;
+	SoftmaxWithLossParameter_t *sml1_params;
+	SoftmaxWithLossLayer_t *sml1;
+	Blob_t *sml1_top;
+
+	ArgMaxParameter_t *argmax1_params;
+	ArgMaxLayer_t *argmax1;
+	Blob_t *argmax1_top;
+
+	AccuracyParameter_t *accuracy1_params;
+	AccuracyLayer_t *accuracy1;
+	Blob_t *accuracy1_top;
 
 
 	Blob_t *conv1_filtersBlob_old;
 	Blob_t *conv1_biasBlob_old;
+	Blob_t *conv2_filtersBlob_old;
+	Blob_t *conv2_biasBlob_old;
+	Blob_t *conv3_filtersBlob_old;
+	Blob_t *conv3_biasBlob_old;
 	Blob_t *ip1_filtersBlob_old;
 	Blob_t *ip1_biasBlob_old;
 
@@ -1419,19 +1818,51 @@ public:
 		mp1 = NULL;
 		mp1_top = NULL;
 		mp1_params = NULL;
+		conv2 = NULL;
+		conv2_top = NULL;
+		conv2_params = NULL;
+		relu2 = NULL;
+		relu2_top = NULL;
+		relu2_params = NULL;
+		mp2 = NULL;
+		mp2_top = NULL;
+		mp2_params = NULL;
+		conv3 = NULL;
+		conv3_top = NULL;
+		conv3_params = NULL;
+		relu3 = NULL;
+		relu3_top = NULL;
+		relu3_params = NULL;
+		mp3 = NULL;
+		mp3_top = NULL;
+		mp3_params = NULL;
 		ip1 = NULL;
 		ip1_top = NULL;
 		ip1_params = NULL;
-		sm1 = NULL;
-		sm1_top = NULL;
-		sm1_params = NULL;
-		mlr1 = NULL;
-		mlr1_top = NULL;
-		mlr1_params = NULL;
+//		sm1 = NULL;
+//		sm1_top = NULL;
+//		sm1_params = NULL;
+//		mlr1 = NULL;
+//		mlr1_top = NULL;
+//		mlr1_params = NULL;
+		sml1 = NULL;
+		sml1_top = NULL;
+		sml1_params = NULL;
 
+		argmax1 = NULL;
+		argmax1_top = NULL;
+		argmax1_params = NULL;
+
+		accuracy1 = NULL;
+		accuracy1_top = NULL;
+		accuracy1_params = NULL;
 
 		conv1_filtersBlob_old = NULL;
 		conv1_biasBlob_old = NULL;
+		conv2_filtersBlob_old = NULL;
+		conv2_biasBlob_old = NULL;
+		conv3_filtersBlob_old = NULL;
+		conv3_biasBlob_old = NULL;
 		ip1_filtersBlob_old = NULL;
 		ip1_biasBlob_old = NULL;
 
@@ -1451,26 +1882,59 @@ public:
 		delete conv1; conv1 = NULL;
 		delete relu1; relu1 = NULL;
 		delete mp1; mp1 = NULL;
+		delete conv2; conv2 = NULL;
+		delete relu2; relu2 = NULL;
+		delete mp2; mp2 = NULL;
+		delete conv3; conv3 = NULL;
+		delete relu3; relu3 = NULL;
+		delete mp3; mp3 = NULL;
 		delete ip1; ip1 = NULL;
-		delete sm1; sm1 = NULL;
-		delete mlr1; mlr1 = NULL;
+//		delete sm1; sm1 = NULL;
+//		delete mlr1; mlr1 = NULL;
+		delete sml1; sml1 = NULL;
 
 		delete conv1_top; conv1_top = NULL;
 		delete relu1_top; relu1_top = NULL;
 		delete mp1_top; mp1_top = NULL;
+		delete conv2_top; conv2_top = NULL;
+		delete relu2_top; relu2_top = NULL;
+		delete mp2_top; mp2_top = NULL;
+		delete conv3_top; conv3_top = NULL;
+		delete relu3_top; relu3_top = NULL;
+		delete mp3_top; mp3_top = NULL;
 		delete ip1_top; ip1_top = NULL;
-		delete sm1_top; sm1_top = NULL;
-		delete mlr1_top; mlr1_top = NULL;
+//		delete sm1_top; sm1_top = NULL;
+//		delete mlr1_top; mlr1_top = NULL;
+		delete sml1_top; sml1_top = NULL;
 
 		delete conv1_params; conv1_params = NULL;
 		delete relu1_params; relu1_params = NULL;
 		delete mp1_params; mp1_params = NULL;
+		delete conv2_params; conv2_params = NULL;
+		delete relu2_params; relu2_params = NULL;
+		delete mp2_params; mp2_params = NULL;
+		delete conv3_params; conv3_params = NULL;
+		delete relu3_params; relu3_params = NULL;
+		delete mp3_params; mp3_params = NULL;
 		delete ip1_params; ip1_params = NULL;
-		delete sm1_params; sm1_params = NULL;
-		delete mlr1_params; mlr1_params = NULL;
+//		delete sm1_params; sm1_params = NULL;
+//		delete mlr1_params; mlr1_params = NULL;
+		delete sml1_params; sml1_params = NULL;
+
+		delete argmax1; argmax1 = NULL;
+		delete argmax1_top; argmax1_top = NULL;
+		delete argmax1_params; argmax1_params = NULL;
+
+		delete accuracy1; accuracy1 = NULL;
+		delete accuracy1_top; accuracy1_top = NULL;
+		delete accuracy1_params; accuracy1_params = NULL;
 
 		delete conv1_filtersBlob_old; conv1_filtersBlob_old = NULL;
 		delete conv1_biasBlob_old; conv1_biasBlob_old = NULL;
+		delete conv2_filtersBlob_old; conv2_filtersBlob_old = NULL;
+		delete conv2_biasBlob_old; conv2_biasBlob_old = NULL;
+		delete conv3_filtersBlob_old; conv3_filtersBlob_old = NULL;
+		delete conv3_biasBlob_old; conv3_biasBlob_old = NULL;
 		delete ip1_filtersBlob_old; ip1_filtersBlob_old = NULL;
 		delete ip1_biasBlob_old; ip1_biasBlob_old = NULL;
 
@@ -1500,16 +1964,17 @@ public:
 		conv1_params->filter_C = 32;
 		conv1_params->filter_H = 5;
 		conv1_params->filter_W = 5;
-		conv1_params->pad_h = 0;
-		conv1_params->pad_w = 0;
+		conv1_params->pad_h = 2;
+		conv1_params->pad_w = 2;
 		conv1_params->stride_h = 1;
 		conv1_params->stride_w = 1;
 		conv1_params->upscale_h = 1;
 		conv1_params->upscale_w = 1;
 		conv1_params->cudnn_conv_mode = CUDNN_CROSS_CORRELATION;
 		conv1 = new ConvolutionLayer_t(conv1_params);
-		CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->filtersBlob->data_gpu, conv1->filtersBlob->count(), (float)0.0f, (float)0.01f) );
-		CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->biasBlob->data_gpu, conv1->biasBlob->count(), (float)0.0f, (float)0.01f) );
+		CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->filtersBlob->data_gpu, conv1->filtersBlob->count(), (float)0.0f, (float)0.0001f) );
+		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->biasBlob->data_gpu, conv1->biasBlob->count(), (float)0.0f, (float)0.01f) );
+		gpu_set(conv1->biasBlob->count(), 0, conv1->biasBlob->data_gpu);
 		conv1->Setup(batch_samples, conv1_top);
 
 
@@ -1524,8 +1989,8 @@ public:
 		mp1_top = new Blob_t();
 		mp1_params = new PoolingParameter_t();
 		mp1_params->cudnn_pooling_mode = CUDNN_POOLING_MAX;
-		mp1_params->poolsize_h = 2;
-		mp1_params->poolsize_w = 2;
+		mp1_params->poolsize_h = 3;
+		mp1_params->poolsize_w = 3;
 		mp1_params->pad_h = 0;
 		mp1_params->pad_w = 0;
 		mp1_params->stride_h = 2;
@@ -1533,29 +1998,137 @@ public:
 		mp1 = new PoolingLayer_t(mp1_params);
 		mp1->Setup(relu1_top, mp1_top);
 
+		printf("conv2 setup.\n");
+		conv2_top = new Blob_t();
+		conv2_params = new ConvolutionParameter_t();
+		conv2_params->filter_N = 32;
+		conv2_params->filter_C = 32;
+		conv2_params->filter_H = 5;
+		conv2_params->filter_W = 5;
+		conv2_params->pad_h = 2;
+		conv2_params->pad_w = 2;
+		conv2_params->stride_h = 1;
+		conv2_params->stride_w = 1;
+		conv2_params->upscale_h = 1;
+		conv2_params->upscale_w = 1;
+		conv2_params->cudnn_conv_mode = CUDNN_CROSS_CORRELATION;
+		conv2 = new ConvolutionLayer_t(conv2_params);
+		CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->filtersBlob->data_gpu, conv2->filtersBlob->count(), (float)0.0f, (float)0.01f) );
+		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
+		gpu_set(conv2->biasBlob->count(), 0, conv2->biasBlob->data_gpu);
+		conv2->Setup(mp1_top, conv2_top);
+
+
+		printf("relu2 setup.\n");
+		relu2_top = new Blob_t();
+		relu2_params = new ActivationParameter_t();
+		relu2_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
+		relu2 = new ActivationLayer_t(relu2_params);
+		relu2->Setup(conv2_top, relu2_top);
+
+		printf("mp2 setup.\n");
+		mp2_top = new Blob_t();
+		mp2_params = new PoolingParameter_t();
+		mp2_params->cudnn_pooling_mode = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;
+		mp2_params->poolsize_h = 3;
+		mp2_params->poolsize_w = 3;
+		mp2_params->pad_h = 0;
+		mp2_params->pad_w = 0;
+		mp2_params->stride_h = 2;
+		mp2_params->stride_w = 2;
+		mp2 = new PoolingLayer_t(mp2_params);
+		mp2->Setup(relu2_top, mp2_top);
+
+		printf("conv3 setup.\n");
+		conv3_top = new Blob_t();
+		conv3_params = new ConvolutionParameter_t();
+		conv3_params->filter_N = 32;
+		conv3_params->filter_C = 64;
+		conv3_params->filter_H = 5;
+		conv3_params->filter_W = 5;
+		conv3_params->pad_h = 2;
+		conv3_params->pad_w = 2;
+		conv3_params->stride_h = 1;
+		conv3_params->stride_w = 1;
+		conv3_params->upscale_h = 1;
+		conv3_params->upscale_w = 1;
+		conv3_params->cudnn_conv_mode = CUDNN_CROSS_CORRELATION;
+		conv3 = new ConvolutionLayer_t(conv3_params);
+		CURAND_CHECK( curandGenerateNormal(curand_generator, conv3->filtersBlob->data_gpu, conv3->filtersBlob->count(), (float)0.0f, (float)0.01f) );
+		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv3->biasBlob->data_gpu, conv3->biasBlob->count(), (float)0.0f, (float)0.01f) );
+		gpu_set(conv3->biasBlob->count(), 0, conv3->biasBlob->data_gpu);
+		conv3->Setup(mp2_top, conv3_top);
+
+
+		printf("relu3 setup.\n");
+		relu3_top = new Blob_t();
+		relu3_params = new ActivationParameter_t();
+		relu3_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
+		relu3 = new ActivationLayer_t(relu3_params);
+		relu3->Setup(conv3_top, relu3_top);
+
+		printf("mp3 setup.\n");
+		mp3_top = new Blob_t();
+		mp3_params = new PoolingParameter_t();
+		mp3_params->cudnn_pooling_mode = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;
+		mp3_params->poolsize_h = 3;
+		mp3_params->poolsize_w = 3;
+		mp3_params->pad_h = 0;
+		mp3_params->pad_w = 0;
+		mp3_params->stride_h = 2;
+		mp3_params->stride_w = 2;
+		mp3 = new PoolingLayer_t(mp3_params);
+		mp3->Setup(relu3_top, mp3_top);
+
 		printf("ip1 setup.\n");
 		ip1_top = new Blob_t();
 		ip1_params = new FullyConnectedParameter_t();
 		ip1_params->hidden_size = 10;
 		ip1 = new FullyConnectedLayer_t(ip1_params);
-		ip1->Setup(mp1_top, ip1_top);
+		ip1->Setup(mp3_top, ip1_top);
 		CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->filtersBlob->data_gpu, ip1->filtersBlob->count(), (float)0.0f, (float)0.01f) );
-		CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
+		// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
+		gpu_set(ip1->biasBlob->count(), 0, ip1->biasBlob->data_gpu);
 
+//		printf("sm1 setup.\n");
+//		sm1_top = new Blob_t();
+//		sm1_params = new SoftmaxParameter_t();
+//		sm1_params->cudnn_softmax_algo = CUDNN_SOFTMAX_ACCURATE;
+//		sm1_params->cudnn_softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL;
+//		sm1 = new SoftmaxLayer_t(sm1_params);
+//		sm1->Setup(ip1_top, sm1_top);
+//
+//		printf("mlr1 setup (in cpu).\n");
+//		mlr1_top = new Blob_t();
+//		mlr1_params = new MultinomialLogisticLossParameter_t();
+//		mlr1 = new MultinomialLogisticLossLayer_t(mlr1_params);
+//		mlr1->Setup(sm1_top, mlr1_top);
 
-		printf("sm1 setup.\n");
-		sm1_top = new Blob_t();
-		sm1_params = new SoftmaxParameter_t();
-		sm1_params->cudnn_softmax_algo = CUDNN_SOFTMAX_ACCURATE;
-		sm1_params->cudnn_softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL;
-		sm1 = new SoftmaxLayer_t(sm1_params);
-		sm1->Setup(ip1_top, sm1_top);
+		printf("sml1 setup.\n");
+		sml1_top = new Blob_t();
+		sml1_params = new SoftmaxWithLossParameter_t();
+		sml1_params->cudnn_softmax_algo = CUDNN_SOFTMAX_ACCURATE;
+		sml1_params->cudnn_softmax_mode = CUDNN_SOFTMAX_MODE_CHANNEL;
+		sml1_params->has_ignore_label = false;
+		sml1_params->ignore_label = -1;
+		sml1_params->normalize = false;
+		sml1 = new SoftmaxWithLossLayer_t(sml1_params);
+		sml1->Setup(ip1_top, sml1_top);
 
-		printf("mlr1 setup (in cpu).\n");
-		mlr1_top = new Blob_t();
-		mlr1_params = new MultinomialLogisticLossParameter_t();
-		mlr1 = new MultinomialLogisticLossLayer_t(mlr1_params);
-		mlr1->Setup(sm1_top, mlr1_top);
+		printf("argmax1 setup.\n");
+		argmax1_top = new Blob_t();
+		argmax1_params = new ArgMaxParameter_t();
+		argmax1_params->out_max_val = true;
+		argmax1_params->top_k = 1;
+		argmax1 = new ArgMaxLayer_t(argmax1_params);
+		argmax1->Setup(sml1_top, argmax1_top);
+
+		printf("accuracy1 setup.\n");
+		accuracy1_top = new Blob_t();
+		accuracy1_params = new AccuracyParameter_t();
+		accuracy1_params->top_k = 1;
+		accuracy1 = new AccuracyLayer_t(accuracy1_params);
+		accuracy1->Setup(ip1_top, accuracy1_top);
 
 		printf("initialize old net params.\n");
 		conv1_filtersBlob_old = new Blob_t(conv1->filtersBlob->N, conv1->filtersBlob->C, conv1->filtersBlob->H, conv1->filtersBlob->W);
@@ -1564,6 +2137,20 @@ public:
 		conv1_biasBlob_old->allocate_gpu_data();
 		gpu_fill(NULL, conv1_filtersBlob_old->data_gpu, conv1_filtersBlob_old->count(), 0.0f, 0.0f);
 		gpu_fill(NULL, conv1_biasBlob_old->data_gpu, conv1_biasBlob_old->count(), 0.0f, 0.0f);
+
+		conv2_filtersBlob_old = new Blob_t(conv2->filtersBlob->N, conv2->filtersBlob->C, conv2->filtersBlob->H, conv2->filtersBlob->W);
+		conv2_biasBlob_old = new Blob_t(conv2->biasBlob->N, conv2->biasBlob->C, conv2->biasBlob->H, conv2->biasBlob->W);
+		conv2_filtersBlob_old->allocate_gpu_data();
+		conv2_biasBlob_old->allocate_gpu_data();
+		gpu_fill(NULL, conv2_filtersBlob_old->data_gpu, conv2_filtersBlob_old->count(), 0.0f, 0.0f);
+		gpu_fill(NULL, conv2_biasBlob_old->data_gpu, conv2_biasBlob_old->count(), 0.0f, 0.0f);
+
+		conv3_filtersBlob_old = new Blob_t(conv3->filtersBlob->N, conv3->filtersBlob->C, conv3->filtersBlob->H, conv3->filtersBlob->W);
+		conv3_biasBlob_old = new Blob_t(conv3->biasBlob->N, conv3->biasBlob->C, conv3->biasBlob->H, conv3->biasBlob->W);
+		conv3_filtersBlob_old->allocate_gpu_data();
+		conv3_biasBlob_old->allocate_gpu_data();
+		gpu_fill(NULL, conv3_filtersBlob_old->data_gpu, conv3_filtersBlob_old->count(), 0.0f, 0.0f);
+		gpu_fill(NULL, conv3_biasBlob_old->data_gpu, conv3_biasBlob_old->count(), 0.0f, 0.0f);
 
 		ip1_filtersBlob_old = new Blob_t(ip1->filtersBlob->N, ip1->filtersBlob->C, ip1->filtersBlob->H, ip1->filtersBlob->W);
 		ip1_biasBlob_old = new Blob_t(ip1->biasBlob->N, ip1->biasBlob->C, ip1->biasBlob->H, ip1->biasBlob->W);
@@ -1575,10 +2162,8 @@ public:
 		printf("build net (done).\n");
 	}
 
-	float Forward() {
+	void Forward(float *loss, float *accuracy) {
 		cudaSetDevice(gpu_id);
-
-		float loss = 0.0f;
 
 		// printf("conv1 forward.\n");
 		conv1->Forward(batch_samples, conv1_top);
@@ -1589,31 +2174,77 @@ public:
 		// printf("mp1 forward.\n");
 		mp1->Forward(relu1_top, mp1_top);
 
+		// printf("conv2 forward.\n");
+		conv2->Forward(mp1_top, conv2_top);
+
+		// printf("relu2 forward.\n");
+		relu2->Forward(conv2_top, relu2_top);
+
+		// printf("mp2 forward.\n");
+		mp2->Forward(relu2_top, mp2_top);
+
+		// printf("conv3 forward.\n");
+		conv3->Forward(mp2_top, conv3_top);
+
+		// printf("relu3 forward.\n");
+		relu3->Forward(conv3_top, relu3_top);
+
+		// printf("mp2 forward.\n");
+		mp3->Forward(relu3_top, mp3_top);
+
 		// printf("ip1 forward.\n");
-		ip1->Forward(mp1_top, ip1_top);
+		ip1->Forward(mp3_top, ip1_top);
 
 		// printf("sm1 forward.\n");
-		sm1->Forward(ip1_top, sm1_top);
+		// sm1->Forward(ip1_top, sm1_top);
 
 		// printf("mlr1 forward.\n");
-		mlr1->Forward(sm1_top, batch_labels, mlr1_top);
+		// mlr1->Forward(sm1_top, batch_labels, mlr1_top);
 
-		loss = mlr1_top->data_cpu[0];
+		// loss = mlr1_top->data_cpu[0];
 
-		return loss;
+		sml1->Forward(ip1_top, batch_labels, sml1_top, loss);
+
+		argmax1->Forward_cpu(sml1_top, argmax1_top);
+
+		accuracy1->Forward_cpu(ip1_top, batch_labels, accuracy1_top);
+
+		*accuracy = accuracy1_top->data_cpu[0];
+
 	}
 
 	void Backward() {
 		cudaSetDevice(gpu_id);
 
+		// printf("sml1 backward.\n");
+		sml1->Backward(sml1_top, batch_labels, ip1_top);
+
 		// printf("mlr1 backward.\n");
-		mlr1->Backward(mlr1_top, batch_labels, sm1_top);
+		// mlr1->Backward(mlr1_top, batch_labels, sm1_top);
 
 		// printf("sm1 backward.\n");
-		sm1->Backward(sm1_top, ip1_top);
+		// sm1->Backward(sm1_top, ip1_top);
 
 		// printf("ip1 backward.\n");
-		ip1->Backward(ip1_top, mp1_top);
+		ip1->Backward(ip1_top, mp3_top);
+
+		// printf("mp3 backward.\n");
+		mp3->Backward(mp3_top, relu3_top);
+
+		// printf("relu3 backward.\n");
+		relu3->Backward(relu3_top, conv3_top);
+
+		// printf("conv3 backward.\n");
+		conv3->Backward(conv3_top, mp2_top);
+
+		// printf("mp2 backward.\n");
+		mp2->Backward(mp2_top, relu2_top);
+
+		// printf("relu2 backward.\n");
+		relu2->Backward(relu2_top, conv2_top);
+
+		// printf("conv2 backward.\n");
+		conv2->Backward(conv2_top, mp1_top);
 
 		// printf("mp1 backward.\n");
 		mp1->Backward(mp1_top, relu1_top);
@@ -1625,10 +2256,9 @@ public:
 		conv1->Backward(conv1_top, batch_samples);
 	}
 
-	float ForwardBackward() {
-		float loss = Forward();
+	void ForwardBackward(float *loss, float *accuracy) {
+		Forward(loss, accuracy);
 		Backward();
-		return loss;
 	}
 
 	void ComputeUpdateValueSingle(Blob_t *param_gradient_blob, Blob_t *param_blob_old,
@@ -1649,45 +2279,83 @@ public:
 	}
 	void ComputeUpdateValue(float lr_rate, float momentum, float weight_decay) {
 		cudaSetDevice(gpu_id);
+		ComputeUpdateValueSingle(conv3->filtersBlob, conv3_filtersBlob_old, lr_rate, momentum, weight_decay);
+		ComputeUpdateValueSingle(conv3->biasBlob, 	 conv3_biasBlob_old, 	lr_rate, momentum, weight_decay);
+		ComputeUpdateValueSingle(conv2->filtersBlob, conv2_filtersBlob_old, lr_rate, momentum, weight_decay);
+		ComputeUpdateValueSingle(conv2->biasBlob, 	 conv2_biasBlob_old, 	lr_rate, momentum, weight_decay);
 		ComputeUpdateValueSingle(conv1->filtersBlob, conv1_filtersBlob_old, lr_rate, momentum, weight_decay);
-		ComputeUpdateValueSingle(conv1->biasBlob, conv1_biasBlob_old, lr_rate, momentum, weight_decay);
-		ComputeUpdateValueSingle(ip1->filtersBlob, ip1_filtersBlob_old, lr_rate, momentum, weight_decay);
-		ComputeUpdateValueSingle(ip1->biasBlob, ip1_biasBlob_old, lr_rate, momentum, weight_decay);
+		ComputeUpdateValueSingle(conv1->biasBlob, 	 conv1_biasBlob_old, 	lr_rate, momentum, weight_decay);
+		ComputeUpdateValueSingle(ip1->filtersBlob,   ip1_filtersBlob_old,   lr_rate, momentum, weight_decay);
+		ComputeUpdateValueSingle(ip1->biasBlob,      ip1_biasBlob_old, 		lr_rate, momentum, weight_decay);
 	}
 
 	void UpdateNet() {
 		cudaSetDevice(gpu_id);
-		printf("gpuid: %d\n", gpu_id);
+		gpu_axpy(cublas_handle, conv3->filtersBlob->count(), float(-1), conv3->filtersBlob->diff_gpu, conv3->filtersBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv3->biasBlob->count(), 	 float(-1), conv3->biasBlob->diff_gpu, 	  conv3->biasBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv2->filtersBlob->count(), float(-1), conv2->filtersBlob->diff_gpu, conv2->filtersBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv2->biasBlob->count(), 	 float(-1), conv2->biasBlob->diff_gpu, 	  conv2->biasBlob->data_gpu);
 		gpu_axpy(cublas_handle, conv1->filtersBlob->count(), float(-1), conv1->filtersBlob->diff_gpu, conv1->filtersBlob->data_gpu);
-		gpu_axpy(cublas_handle, conv1->biasBlob->count(), float(-1), conv1->biasBlob->diff_gpu, conv1->biasBlob->data_gpu);
-		gpu_axpy(cublas_handle, ip1->filtersBlob->count(), float(-1), ip1->filtersBlob->diff_gpu, ip1->filtersBlob->data_gpu);
-		gpu_axpy(cublas_handle, ip1->biasBlob->count(), float(-1), ip1->biasBlob->diff_gpu, ip1->biasBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv1->biasBlob->count(), 	 float(-1), conv1->biasBlob->diff_gpu,    conv1->biasBlob->data_gpu);
+		gpu_axpy(cublas_handle, ip1->filtersBlob->count(),   float(-1), ip1->filtersBlob->diff_gpu,   ip1->filtersBlob->data_gpu);
+		gpu_axpy(cublas_handle, ip1->biasBlob->count(), 	 float(-1), ip1->biasBlob->diff_gpu,      ip1->biasBlob->data_gpu);
+	}
+
+	void SaveNetParams(int epoch) {
+		stringstream f1; f1 << net_name << "_c1_weight_e" << epoch << ".mat";
+		conv1->filtersBlob->save_cpu_data_and_diff_to_mat(f1.str().c_str());
+		stringstream f2; f2 << net_name << "_c1_bias_e" << epoch << ".mat";
+		conv1->biasBlob->save_cpu_data_and_diff_to_mat(f2.str().c_str());
+
+		stringstream f3; f3 << net_name << "_c2_weight_e" << epoch << ".mat";
+		conv2->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
+		stringstream f4; f4 << net_name << "_c2_bias_e" << epoch << ".mat";
+		conv2->biasBlob->save_cpu_data_and_diff_to_mat(f4.str().c_str());
+
+		stringstream f5; f5 << net_name << "_c3_weight_e" << epoch << ".mat";
+		conv3->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
+		stringstream f6; f6 << net_name << "_c3_bias_e" << epoch << ".mat";
+		conv3->biasBlob->save_cpu_data_and_diff_to_mat(f6.str().c_str());
+
+		stringstream f7; f7 << net_name << "_ip1_weight_e" << epoch << ".mat";
+		ip1->filtersBlob->save_cpu_data_and_diff_to_mat(f7.str().c_str());
+		stringstream f8; f8 << net_name << "_ip1_bias_e" << epoch << ".mat";
+		ip1->biasBlob->save_cpu_data_and_diff_to_mat(f8.str().c_str());
+
 	}
 
 	void CopyNetParamsFrom(const Network_t *other) {
+		CopyBlobData_gpu(other->conv3->filtersBlob, other->gpu_id, conv3->filtersBlob, gpu_id);
+		CopyBlobData_gpu(other->conv3->biasBlob, 	other->gpu_id, conv3->biasBlob,	   gpu_id);
+		CopyBlobData_gpu(other->conv2->filtersBlob, other->gpu_id, conv2->filtersBlob, gpu_id);
+		CopyBlobData_gpu(other->conv2->biasBlob, 	other->gpu_id, conv2->biasBlob,    gpu_id);
 		CopyBlobData_gpu(other->conv1->filtersBlob, other->gpu_id, conv1->filtersBlob, gpu_id);
-		CopyBlobData_gpu(other->conv1->biasBlob, other->gpu_id, conv1->biasBlob, gpu_id);
-		CopyBlobData_gpu(other->ip1->filtersBlob, other->gpu_id, ip1->filtersBlob, gpu_id);
-		CopyBlobData_gpu(other->ip1->biasBlob, other->gpu_id, ip1->biasBlob, gpu_id);
+		CopyBlobData_gpu(other->conv1->biasBlob, 	other->gpu_id, conv1->biasBlob,    gpu_id);
+		CopyBlobData_gpu(other->ip1->filtersBlob, 	other->gpu_id, ip1->filtersBlob,   gpu_id);
+		CopyBlobData_gpu(other->ip1->biasBlob, 		other->gpu_id, ip1->biasBlob, 	   gpu_id);
 	}
 
 	void AddNetParamsDiffFrom(const Network_t *other) {
+		AddBlobDiff_gpu(other->conv3->filtersBlob, other->gpu_id, conv3->filtersBlob, gpu_id);
+		AddBlobDiff_gpu(other->conv3->biasBlob,    other->gpu_id, conv3->biasBlob,    gpu_id);
+		AddBlobDiff_gpu(other->conv2->filtersBlob, other->gpu_id, conv2->filtersBlob, gpu_id);
+		AddBlobDiff_gpu(other->conv2->biasBlob,    other->gpu_id, conv2->biasBlob, 	  gpu_id);
 		AddBlobDiff_gpu(other->conv1->filtersBlob, other->gpu_id, conv1->filtersBlob, gpu_id);
-		AddBlobDiff_gpu(other->conv1->biasBlob, other->gpu_id, conv1->biasBlob, gpu_id);
-		AddBlobDiff_gpu(other->ip1->filtersBlob, other->gpu_id, ip1->filtersBlob, gpu_id);
-		AddBlobDiff_gpu(other->ip1->biasBlob, other->gpu_id, ip1->biasBlob, gpu_id);
+		AddBlobDiff_gpu(other->conv1->biasBlob,    other->gpu_id, conv1->biasBlob, 	  gpu_id);
+		AddBlobDiff_gpu(other->ip1->filtersBlob,   other->gpu_id, ip1->filtersBlob,   gpu_id);
+		AddBlobDiff_gpu(other->ip1->biasBlob,      other->gpu_id, ip1->biasBlob, 	  gpu_id);
 	}
 
 	void ClearNetParamsDiff() {
 		cudaSetDevice(gpu_id);
+		gpu_set(conv3->filtersBlob->count(), 0, conv3->filtersBlob->diff_gpu);
+		gpu_set(conv3->biasBlob->count(), 	 0, conv3->biasBlob->diff_gpu);
+		gpu_set(conv2->filtersBlob->count(), 0, conv2->filtersBlob->diff_gpu);
+		gpu_set(conv2->biasBlob->count(),    0, conv2->biasBlob->diff_gpu);
 		gpu_set(conv1->filtersBlob->count(), 0, conv1->filtersBlob->diff_gpu);
-		gpu_set(conv1->biasBlob->count(), 0, conv1->biasBlob->diff_gpu);
-		gpu_set(ip1->filtersBlob->count(), 0, ip1->filtersBlob->diff_gpu);
-		gpu_set(ip1->biasBlob->count(), 0, ip1->biasBlob->diff_gpu);
-		//		CUDA_CHECK( cudaMemset(conv1->filtersBlob->diff_gpu, 0, conv1->filtersBlob->count() * sizeof(float)) );
-		//		CUDA_CHECK( cudaMemset(conv1->biasBlob->diff_gpu, 0, conv1->biasBlob->count() * sizeof(float)) );
-		//		CUDA_CHECK( cudaMemset(ip1->filtersBlob->diff_gpu, 0, ip1->filtersBlob->count() * sizeof(float)) );
-		//		CUDA_CHECK( cudaMemset(ip1->biasBlob->diff_gpu, 0, ip1->biasBlob->count() * sizeof(float)) );
+		gpu_set(conv1->biasBlob->count(),    0, conv1->biasBlob->diff_gpu);
+		gpu_set(ip1->filtersBlob->count(),   0, ip1->filtersBlob->diff_gpu);
+		gpu_set(ip1->biasBlob->count(),      0, ip1->biasBlob->diff_gpu);
 	}
 
 };
@@ -1711,8 +2379,9 @@ void do_slave(void *data_)
 	cudaSetDevice(data->net_gpu_id);
 	CUDA_CHECK( cudaMemcpy(data->net->batch_samples->data_gpu, data->batch_samples->data_cpu, data->batch_samples->count() * sizeof(float), cudaMemcpyHostToDevice) );
 	CUDA_CHECK( cudaMemcpy(data->net->batch_labels->data_gpu, data->batch_labels->data_cpu, data->batch_labels->count() * sizeof(float), cudaMemcpyHostToDevice) );
-	float trn_loss = data->net->ForwardBackward();
-	printf("trn_loss: %.6f\n", trn_loss);
+	float trn_loss, trn_acc;
+	data->net->ForwardBackward(&trn_loss, &trn_acc);
+	// printf("trn_loss: %.6f\n", trn_loss);
 	data->net->ComputeUpdateValue(data->lr_rate, data->momentum, data->weight_decay);
 }
 
@@ -1992,11 +2661,11 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 
 		// testing net
-		float tst_loss = 0.0f;
+		float tst_loss = 0.0f, tst_acc = 0.0f;
 		tst_net->CopyNetParamsFrom(trn_net);
 		for(int iter = 0; iter < floor(10000 / tst_batch_size); iter++) {
 			tst_data_layer->Forward_cpu(tst_batch_samples, tst_batch_labels);
-			tst_loss += tst_net->Forward();
+			tst_net->Forward(&tst_loss, &tst_acc);
 		}
 
 		// training net
@@ -2112,7 +2781,107 @@ int main_test_memcpy(int argc, char **argv) {
 	return 0;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char **argv) {
+	if(argc != 12) {
+			printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+			return -1;
+		}
+		string trn_db_filename = string(argv[1]);
+		string tst_db_filename = string(argv[2]);
+		string mean_file = string(argv[3]);
+		float lr_rate = atof(argv[4]);
+		int lr_stepsize = atoi(argv[5]);
+		float momentum = atof(argv[6]);
+		float weight_decay = atof(argv[7]);
+		int trn_batch_size = atoi(argv[8]);
+		int tst_batch_size = atoi(argv[9]);
+		int max_epoch_num = atoi(argv[10]);
+		string gpu_ids_str = string(argv[11]);
+
+		int current_gpu_id = 0;
+		cudaSetDevice(current_gpu_id);
+		Blob_t *trn_batch_samples = new Blob_t();
+		Blob_t *trn_batch_labels = new Blob_t();
+		DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
+		trn_data_param->backend = "lmdb";
+		trn_data_param->batch_size = trn_batch_size;
+		trn_data_param->source = trn_db_filename;
+		trn_data_param->mean_file = mean_file;
+		DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
+		trn_data_layer->Setup();
+
+		Blob_t *tst_batch_samples = new Blob_t();
+		Blob_t *tst_batch_labels = new Blob_t();
+		DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
+		tst_data_param->backend = "lmdb";
+		tst_data_param->batch_size = tst_batch_size;
+		tst_data_param->source = tst_db_filename;
+		tst_data_param->mean_file = mean_file;
+		DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
+		tst_data_layer->Setup();
+
+		Network_t *trn_net = new Network_t("trn_net", current_gpu_id);
+		trn_net->BuildNet(trn_batch_size, "");
+		trn_net->batch_labels->allocate_cpu_data();
+
+		Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
+		tst_net->BuildNet(tst_batch_size, "");
+		tst_net->batch_labels->allocate_cpu_data();
+
+		int num_tst_iters = floor(10000 / tst_batch_size);
+		int num_trn_iters = floor(50000 / trn_batch_size);
+		for(int epoch = 0; epoch < max_epoch_num; epoch++) {
+
+			// testing net
+			float tst_loss = 0.0f, tst_loss_batch = 0.0f;
+			float tst_acc  = 0.0f, tst_acc_batch  = 0.0f;
+			tst_net->CopyNetParamsFrom(trn_net);
+			for(int iter = 0; iter < num_tst_iters; iter++) {
+				tst_data_layer->Forward_to_Network(tst_net->batch_samples, tst_net->batch_labels);
+				tst_net->Forward(&tst_loss_batch, &tst_acc_batch);
+				tst_loss += tst_loss_batch;
+				tst_acc += tst_acc_batch;
+			}
+			tst_loss /= num_tst_iters;
+			tst_acc  /= num_tst_iters;
+
+			// training net
+			float trn_loss = 0.0f, trn_loss_batch = 0.0f;
+			float trn_acc  = 0.0f, trn_acc_batch  = 0.0f;
+			for(int iter = 0; iter < num_trn_iters; iter++) {
+				trn_data_layer->Forward_to_Network(trn_net->batch_samples, trn_net->batch_labels);
+				trn_net->ForwardBackward(&trn_loss_batch, &trn_acc_batch);
+				trn_loss += trn_loss_batch;
+				trn_acc  += trn_acc_batch;
+				trn_net->ComputeUpdateValue(lr_rate, momentum, weight_decay);
+				trn_net->UpdateNet();
+			}
+			trn_loss /= num_trn_iters;
+			trn_acc  /= num_trn_iters;
+
+			// update learning rate
+			if((epoch != 0) && (epoch % lr_stepsize == 0))
+			{
+				lr_rate /= 10;
+				trn_net->SaveNetParams(epoch);
+			}
+			printf("epoch[%d]: trn_loss=%.6f, trn_acc=%.6f, tst_loss=%.6f, tst_acc=%.6f\n",
+					epoch, trn_loss, trn_acc, tst_loss, tst_acc);
+		}
+
+		delete trn_net;
+		delete tst_net;
+
+		delete trn_data_layer;
+		delete tst_data_layer;
+		delete trn_data_param;
+		delete tst_data_param;
+
+		cudaDeviceReset();
+		return 0;
+}
+
+int main_still_errors(int argc, char *argv[]) {
 	if(argc != 12) {
 		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
@@ -2159,8 +2928,6 @@ int main(int argc, char *argv[]) {
 		printf("trn_batch_size must be times of the number of given gpus.\n");
 		return -1;
 	}
-
-	cudaSetDevice(current_gpu_id);
 
 	cudaSetDevice(current_gpu_id);
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
@@ -2251,12 +3018,13 @@ int main(int argc, char *argv[]) {
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 
 		// testing net
-		float tst_loss = 0.0f;
+		float tst_loss = 0.0f, tst_acc = 0.0f;
 		// tst_net->CopyNetParamsFrom(trn_net);
 		for(int iter = 0; iter < floor(10000 / tst_batch_size); iter++) {
 			tst_data_layer->Forward_cpu(tst_batch_samples, tst_batch_labels);
-			tst_loss += tst_net->Forward();
+			tst_net->Forward(&tst_loss, &tst_acc);
 		}
+		printf("epoch[%d]: tst_loss=%.6f\n", epoch, tst_loss);
 
 		// training net
 		for(int iter = 0; iter < floor(50000 / trn_batch_size); iter++) {
@@ -2275,24 +3043,24 @@ int main(int argc, char *argv[]) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
 
-			printf("now, synchronize the threads.\n");
+			// printf("now, synchronize the threads.\n");
 			cudaDeviceSynchronize();
 
-			printf("clear net params diff in tst_net.\n");
+			// printf("clear net params diff in tst_net.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
 			cudaDeviceSynchronize();
 
-			printf("copy update values from each sub nets to the main net.\n");
+			// printf("copy update values from each sub nets to the main net.\n");
 			cudaSetDevice(current_gpu_id);
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
 
-			printf("update the net (gpuid=%d).\n", current_gpu_id);
+			// printf("update the net.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
-			printf("update the net(done).\n");
+			// printf("update the net(done).\n");
 		}
 	}
 
