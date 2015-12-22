@@ -396,6 +396,7 @@ public:
 	void save_cpu_data_and_diff_to_mat(const char *fname, bool is_save_diff = false)
 	{
 		data_to_cpu();
+
 		mat_t *matfp = Mat_Create(fname, 0);
 		//matfp = Mat_CreateVer(fname, 0, MAT_FT_MAT73);
 		size_t dims[4];
@@ -494,8 +495,7 @@ public:
 		if(data_cpu == NULL)
 			CUDA_CHECK( cudaMallocHost((void**)&data_cpu, count * sizeof(float)) );
 		if(data_gpu != NULL)
-			// CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
-			CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDefault) );
+			CUDA_CHECK( cudaMemcpy(data_cpu, data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 	}
 
 	void diff_to_cpu()
@@ -3059,6 +3059,7 @@ int main(int argc, char *argv[]) {
 			printf("add trn_net_i params diff into tst_net(done).\n");
 			cudaDeviceSynchronize();
 
+			cudaSetDevice(current_gpu_id);
 			if(epoch==0 && iter==0) {
 				tst_net->SaveNetParams(0);
 			}
@@ -3071,10 +3072,10 @@ int main(int argc, char *argv[]) {
 			printf("update tst_net params(done).\n");
 			cudaDeviceSynchronize();
 
-
 			error = cudaGetLastError();
 			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
+			cudaSetDevice(current_gpu_id);
 			if(epoch==0 && iter==0) {
 				tst_net->SaveNetParams(1);
 			}
