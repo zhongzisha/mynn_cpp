@@ -2102,6 +2102,10 @@ int main(int argc, char *argv[]) {
 		gpus.push_back(current_gpu_id);
 	}
 
+	if(trn_batch_size % gpus.size() != 0) {
+		printf("trn_batch_size must be times of the number of given gpus.\n");
+	}
+
 	cudaSetDevice(current_gpu_id);
 
 	vector<Network_t *> trn_nets(gpus.size());

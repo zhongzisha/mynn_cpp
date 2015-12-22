@@ -8,7 +8,9 @@ all:
 	@echo ${HOSTNAME}
 	rm -rf ${OUTDIR}/${EXE}
 	protoc -I=./ --cpp_out=./ ./myproto.proto
-	nvcc -m64 -ccbin=g++ -gencode arch=compute_35,code=sm_35 \
+	nvcc -m64 -ccbin=g++ \
+	-gencode arch=compute_35,code=sm_35 \
+	-gencode arch=compute_50,code=sm_50 \
 	-Xcompiler -fopenmp \
 	-I${CUDNN_ROOT}/ \
 	-I${CUDA_ROOT}/include \
