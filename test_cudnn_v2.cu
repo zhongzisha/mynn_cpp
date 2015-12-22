@@ -517,14 +517,12 @@ void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gp
 		}
 
 		float *temp_data = NULL;
-		for(int i = 0; i <= 1; i++) {
-			cudaSetDevice(src_gpu_id);
-			cudaMallocHost((void **)&temp_data, count * sizeof(float));
-			cudaMemcpy(temp_data, src->data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost);
-			cudaSetDevice(dst_gpu_id);
-			cudaMemcpy(dst->data_gpu, temp_data, count * sizeof(float), cudaMemcpyHostToDevice);
-			cudaFreeHost(temp_data);
-		}
+		cudaSetDevice(src_gpu_id);
+		cudaMallocHost((void **)&temp_data, count * sizeof(float));
+		cudaMemcpy(temp_data, src->data_gpu, count * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaSetDevice(dst_gpu_id);
+		cudaMemcpy(dst->data_gpu, temp_data, count * sizeof(float), cudaMemcpyHostToDevice);
+		cudaFreeHost(temp_data);
 	}
 }
 
@@ -550,17 +548,15 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 
 		float *temp_data = NULL;
 		float *dst_temp_data = NULL;
-		for(int i = 0; i <= 1; i++) {
-			cudaSetDevice(src_gpu_id);
-			cudaMallocHost((void **)&temp_data, count * sizeof(float));
-			cudaMemcpy(temp_data, src->diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost);
-			cudaSetDevice(dst_gpu_id);
-			cudaMalloc((void **)&dst_temp_data, count * sizeof(float));
-			cudaMemcpy(dst_temp_data, temp_data, count * sizeof(float), cudaMemcpyHostToDevice);
-			gpu_add(count, dst_temp_data, dst->diff_gpu, dst->diff_gpu);
-			cudaFreeHost(temp_data);
-			cudaFree(dst_temp_data);
-		}
+		cudaSetDevice(src_gpu_id);
+		cudaMallocHost((void **)&temp_data, count * sizeof(float));
+		cudaMemcpy(temp_data, src->diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost);
+		cudaSetDevice(dst_gpu_id);
+		cudaMalloc((void **)&dst_temp_data, count * sizeof(float));
+		cudaMemcpy(dst_temp_data, temp_data, count * sizeof(float), cudaMemcpyHostToDevice);
+		gpu_add(count, dst_temp_data, dst->diff_gpu, dst->diff_gpu);
+		cudaFreeHost(temp_data);
+		cudaFree(dst_temp_data);
 	}
 }
 
