@@ -1966,11 +1966,11 @@ public:
 
 		cudaSetDevice(gpu_id);
 
-		CUBLAS_CHECK( cublasCreate(&cublas_handle) );
 		CUDA_CHECK( cudaStreamCreate(&curand_stream) );
 		curand_rngtype = CURAND_RNG_PSEUDO_DEFAULT;
 		CURAND_CHECK( curandCreateGenerator(&curand_generator, curand_rngtype) );
 		CURAND_CHECK( curandSetStream(curand_generator, curand_stream) );
+		CUBLAS_CHECK( cublasCreate(&cublas_handle) );
 
 		batch_samples = new Blob_t(batch_size_, 3, 32, 32);
 		batch_labels = new Blob_t(batch_size_, 1, 1, 1);
@@ -2986,6 +2986,11 @@ int main(int argc, char *argv[]) {
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
+	cudaSetDevice(current_gpu_id);
+	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
+	tst_net->BuildNet(tst_batch_size, "");
+	tst_net->SaveNetParams(100);
+
 	vector<Network_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
 	vector<Blob_t *> batch_labels_slices(gpus.size());
@@ -3009,11 +3014,6 @@ int main(int argc, char *argv[]) {
 		batch_labels_slices[i] = trn_nets[i]->batch_labels;
 	}
 	printf("initialize nets for each gpu (done) ...\n");
-
-	cudaSetDevice(current_gpu_id);
-	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
-	tst_net->BuildNet(tst_batch_size, "");
-	tst_net->SaveNetParams(100);
 
 	pthread_t *threads;
 	pthread_attr_t pta;
