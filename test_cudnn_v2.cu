@@ -2206,10 +2206,10 @@ int main(int argc, char *argv[]) {
 			printf("now, synchronize the threads.\n");
 			cudaDeviceSynchronize();
 			printf("copy update values from each sub nets to the main net.\n");
-			cudaSetDevice(current_gpu_id);
-			for(int i = 0; i < gpus.size(); i++) {
-				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
-			}
+//			cudaSetDevice(current_gpu_id);
+//			for(int i = 0; i < gpus.size(); i++) {
+//				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
+//			}
 			printf("update the net.\n");
 			// tst_net->UpdateNet();
 			printf("update the net(done).\n");
