@@ -2038,7 +2038,36 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	exit(EXIT_SUCCESS);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char **argv) {
+
+	int N = 128;
+	float *data_h = new float[N];
+	for(int i = 0; i < N; i++) {
+		data_h[i] = (float)rand() / (float)RAND_MAX;
+	}
+
+	cudaSetDevice(1);
+	float *data_d = NULL;
+	CUDA_CHECK( cudaMalloc((void **)&data_d, N * sizeof(float)) );
+	CUDA_CHECK( cudaMemcpy(data_d, data_h, N * sizeof(float), cudaMemcpyHostToDevice) );
+	float *data_d_copy = NULL;
+	CUDA_CHECK( cudaMalloc((void **)&data_d_copy, N * sizeof(float)) );
+	CUDA_CHECK( cudaMemcpy(data_d_copy, data_d, N * sizeof(float), cudaMemcpyDeviceToDevice) );
+
+	float *data_h2 = new float[N];
+	CUDA_CHECK( cudaMemcpy(data_h2, data_d_copy, N * sizeof(float), cudaMemcpyDeviceToHost) );
+	for(int i = 0; i < N; i++) {
+		printf("%d: %.6f, %.6f\n", i, data_h[i], data_h2[i]);
+	}
+
+	CUDA_CHECK( cudaFree(data_d) );
+	CUDA_CHECK( cudaFree(data_d_copy) );
+	delete[] data_h;
+	delete[] data_h2;
+	cudaDeviceReset();
+}
+
+int main_still_errors(int argc, char *argv[]) {
 	if(argc != 12) {
 		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
@@ -2204,16 +2233,19 @@ int main(int argc, char *argv[]) {
 			printf("now, synchronize the threads.\n");
 			cudaDeviceSynchronize();
 
-			printf("copy update values from each sub nets to the main net.\n");
+			printf("clear net params diff in tst_net.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
 			cudaDeviceSynchronize();
+
+			printf("copy update values from each sub nets to the main net.\n");
+			cudaSetDevice(current_gpu_id);
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
 
-			cudaSetDevice(current_gpu_id);
 			printf("update the net.\n");
+			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
 			printf("update the net(done).\n");
 		}
