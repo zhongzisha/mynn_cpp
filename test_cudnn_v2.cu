@@ -528,6 +528,7 @@ void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gp
 
 void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu_id)
 {
+	printf("AddBlobDiff_gpu.\n");
 	int count = src->count();
 	if(src_gpu_id == dst_gpu_id) {
 		cudaSetDevice(src_gpu_id);
@@ -558,6 +559,7 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 		cudaFreeHost(temp_data);
 		cudaFree(dst_temp_data);
 	}
+	printf("AddBlobDiff_gpu(done).\n");
 }
 
 class DataLayerParameter_t
