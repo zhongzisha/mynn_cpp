@@ -528,7 +528,6 @@ void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gp
 
 void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu_id)
 {
-	printf("AddBlobDiff_gpu.\n");
 	int count = src->count();
 	if(src_gpu_id == dst_gpu_id) {
 		cudaSetDevice(src_gpu_id);
@@ -559,7 +558,6 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 			CUDA_CHECK( cudaFree(dst_temp_data) );
 		}
 	}
-	printf("AddBlobDiff_gpu(done).\n");
 }
 
 class DataLayerParameter_t
@@ -2190,9 +2188,6 @@ int main(int argc, char *argv[]) {
 		for(int iter = 0; iter < floor(50000 / trn_batch_size); iter++) {
 			trn_data_layer->Forward_cpu_multi(batch_samples_slices, batch_labels_slices, batch_sizes);
 
-			cudaSetDevice(current_gpu_id);
-			tst_net->ClearNetParamsDiff();
-
 			// copy trn_net params into trn_nets_i
 			for(int i = 0; i < gpus.size(); i++) {
 				trn_nets[i]->CopyNetParamsFrom(tst_net);
@@ -2210,6 +2205,7 @@ int main(int argc, char *argv[]) {
 			cudaDeviceSynchronize();
 			printf("copy update values from each sub nets to the main net.\n");
 			cudaSetDevice(current_gpu_id);
+			tst_net->ClearNetParamsDiff();
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
