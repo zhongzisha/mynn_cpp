@@ -371,9 +371,18 @@ public:
 	}
 
 	void print_gpu_data(int howmany) {
+
+		printf("data_cpu: %x\n", data_cpu);
+		printf("data_gpu: %x\n", data_gpu);
+
 		if(data_gpu == NULL)
 			printf("gpu data is NULL.\n");
 		data_to_cpu();
+
+
+		printf("data_cpu: %x\n", data_cpu);
+		printf("data_gpu: %x\n", data_gpu);
+
 		for(int n = 0; n < 1; n++) {
 			for(int c = 0; c < 1; c++) {
 				for(int h = 0; h < 1; h++) {
