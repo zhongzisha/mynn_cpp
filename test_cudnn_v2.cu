@@ -3027,7 +3027,7 @@ int main(int argc, char *argv[]) {
 
 		cudaError_t error;
 		error = cudaGetLastError();
-		printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
+		printf("error after tst net: %s\n", cudaGetErrorString(error));
 
 		// training net
 		for(int iter = 0; iter < num_trn_iters; iter++) {
@@ -3079,7 +3079,7 @@ int main(int argc, char *argv[]) {
 			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			if(epoch==0 && iter==0) {
-				tst_net->SaveNetParams(0, true);
+				tst_net->SaveNetParams(0);
 			}
 
 			printf("update tst_net params.\n");
@@ -3093,7 +3093,7 @@ int main(int argc, char *argv[]) {
 			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			if(epoch==0 && iter==0) {
-				tst_net->SaveNetParams(1, true);
+				tst_net->SaveNetParams(1);
 			}
 
 			break;
