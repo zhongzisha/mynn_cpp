@@ -1445,6 +1445,7 @@ public:
 	}
 
 	~Network_t() {
+		DestroyNet();
 	}
 
 	void DestroyNet() {
@@ -2100,7 +2101,7 @@ int main(int argc, char *argv[]) {
 
 	if(trn_batch_size % gpus.size() != 0) {
 		printf("trn_batch_size: %d\n", trn_batch_size);
-		printf("number of given gpus: %d \n", gpus.size());
+		printf("number of given gpus: %ld \n", gpus.size());
 		printf("trn_batch_size must be times of the number of given gpus.\n");
 		return -1;
 	}
@@ -2202,12 +2203,14 @@ int main(int argc, char *argv[]) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
 
+			printf("now, synchronize the threads.\n");
 			cudaDeviceSynchronize();
+			printf("copy update values from each sub nets to the main net.\n");
 			cudaSetDevice(current_gpu_id);
-			// copy update values from each sub nets to the main trn_net
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
+			printf("update the net.\n");
 			tst_net->UpdateNet();
 		}
 	}
