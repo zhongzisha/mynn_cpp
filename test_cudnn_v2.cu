@@ -3114,18 +3114,23 @@ int main(int argc, char *argv[]) {
 		cudaSetDevice(gpus[i]);
 		delete trn_nets[i]; trn_nets[i] = NULL;
 	}
+	error = cudaGetLastError();
+	printf("error after delete trn_nets: %s\n", cudaGetErrorString(error));
 
 	cudaSetDevice(current_gpu_id);
-
 	batch_samples_slices.clear();
 	batch_labels_slices.clear();
 
 	delete tst_net;
+	error = cudaGetLastError();
+	printf("error after delete tst_net: %s\n", cudaGetErrorString(error));
 
 	delete trn_data_param; trn_data_param = NULL;
 	delete trn_data_layer; trn_data_layer = NULL;
 	delete tst_data_param; tst_data_param = NULL;
 	delete tst_data_layer; tst_data_layer = NULL;
+	error = cudaGetLastError();
+	printf("error after delete datalayer: %s\n", cudaGetErrorString(error));
 
 	if(num_gpus >= gpus.size()) {
 		printf("disable P2P: ");
