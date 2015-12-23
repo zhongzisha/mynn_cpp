@@ -2951,7 +2951,7 @@ int main(int argc, char *argv[]) {
 	int lr_stepsize = 20;
 	float momentum = 0.9;
 	float weight_decay = 0.0005;
-	int trn_batch_size = 100;
+	int trn_batch_size = 600;
 	int tst_batch_size = 100;
 	int max_epoch_num = 1;
 	string gpu_ids_str = "1,2,3";
