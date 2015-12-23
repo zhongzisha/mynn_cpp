@@ -372,16 +372,16 @@ public:
 
 	void print_gpu_data(int howmany) {
 
-		printf("data_cpu: %x\n", data_cpu);
-		printf("data_gpu: %x\n", data_gpu);
+		printf("data_cpu: %X\n", data_cpu);
+		printf("data_gpu: %X\n", data_gpu);
 
 		if(data_gpu == NULL)
 			printf("gpu data is NULL.\n");
 		data_to_cpu();
 
 
-		printf("data_cpu: %x\n", data_cpu);
-		printf("data_gpu: %x\n", data_gpu);
+		printf("data_cpu: %X\n", data_cpu);
+		printf("data_gpu: %X\n", data_gpu);
 
 		for(int n = 0; n < 1; n++) {
 			for(int c = 0; c < 1; c++) {
@@ -2403,6 +2403,7 @@ public:
 };
 
 
+pthread_barrier_t barr;
 struct thread_data_t
 {
 public:
@@ -2426,6 +2427,8 @@ void do_slave(void *data_)
 	data->net->ForwardBackward(&trn_loss, &trn_acc);
 	data->net->ComputeUpdateValue(data->lr_rate, data->momentum, data->weight_decay);
 	printf("gpuid[%d]: trn_loss=%.6f, trn_acc=%.6f\n", data->net_gpu_id, trn_loss, trn_acc);
+
+	pthread_barrier_wait(&barr);
 }
 
 
@@ -3021,6 +3024,7 @@ int main(int argc, char *argv[]) {
 	threads = (pthread_t *) malloc(sizeof(pthread_t) * gpus.size());
 	int ret_count = pthread_attr_init(&pta);
 	pthread_attr_setdetachstate(&pta, PTHREAD_CREATE_JOINABLE);
+	pthread_barrier_init(&barr, NULL, gpus.size());
 
 	thread_data_t thread_data[gpus.size()];
 	for(int i = 0; i < gpus.size(); i++) {
@@ -3069,6 +3073,7 @@ int main(int argc, char *argv[]) {
 			for(int i = 0; i < gpus.size(); i++) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
+
 			cudaDeviceSynchronize();
 
 			printf("clear net params diff.\n");
@@ -3138,6 +3143,8 @@ int main(int argc, char *argv[]) {
 		DisableP2P(gpus);
 		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
 	}
+
+	pthread_barrier_destroy(&barr);
 	ret_count = pthread_attr_destroy(&pta);
 	free(threads); threads = NULL;
 	cudaDeviceReset();
