@@ -2314,31 +2314,14 @@ public:
 
 	void UpdateNet() {
 		cudaSetDevice(gpu_id);
-		cudaError_t error;
 		gpu_axpy(cublas_handle, conv3->filtersBlob->count(), float(-1), conv3->filtersBlob->diff_gpu, conv3->filtersBlob->data_gpu);
-		error = cudaGetLastError();
-		printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv3->biasBlob->count(), 	 float(-1), conv3->biasBlob->diff_gpu, 	  conv3->biasBlob->data_gpu);
-		error = cudaGetLastError();
-				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv2->filtersBlob->count(), float(-1), conv2->filtersBlob->diff_gpu, conv2->filtersBlob->data_gpu);
-		error = cudaGetLastError();
-				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv2->biasBlob->count(), 	 float(-1), conv2->biasBlob->diff_gpu, 	  conv2->biasBlob->data_gpu);
-		error = cudaGetLastError();
-				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv1->filtersBlob->count(), float(-1), conv1->filtersBlob->diff_gpu, conv1->filtersBlob->data_gpu);
-		error = cudaGetLastError();
-				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, conv1->biasBlob->count(), 	 float(-1), conv1->biasBlob->diff_gpu,    conv1->biasBlob->data_gpu);
-		error = cudaGetLastError();
-				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, ip1->filtersBlob->count(),   float(-1), ip1->filtersBlob->diff_gpu,   ip1->filtersBlob->data_gpu);
-		error = cudaGetLastError();
-				printf("error: %s\n", cudaGetErrorString(error));
 		gpu_axpy(cublas_handle, ip1->biasBlob->count(), 	 float(-1), ip1->biasBlob->diff_gpu,      ip1->biasBlob->data_gpu);
-		error = cudaGetLastError();
-				printf("error: %s\n", cudaGetErrorString(error));
 	}
 
 	void SaveNetParams(int epoch) {
@@ -2426,7 +2409,7 @@ void do_slave(void *data_)
 	float trn_loss, trn_acc;
 	data->net->ForwardBackward(&trn_loss, &trn_acc);
 	data->net->ComputeUpdateValue(data->lr_rate, data->momentum, data->weight_decay);
-	printf("gpuid[%d]: trn_loss=%.6f, trn_acc=%.6f\n", data->net_gpu_id, trn_loss, trn_acc);
+	// printf("gpuid[%d]: trn_loss=%.6f, trn_acc=%.6f\n", data->net_gpu_id, trn_loss, trn_acc);
 
 	pthread_barrier_wait(&barr);
 }
