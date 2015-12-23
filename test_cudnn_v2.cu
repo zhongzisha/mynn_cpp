@@ -371,18 +371,10 @@ public:
 	}
 
 	void print_gpu_data(int howmany) {
-
-		printf("data_cpu: %X\n", data_cpu);
-		printf("data_gpu: %X\n", data_gpu);
-
 		if(data_gpu == NULL)
 			printf("gpu data is NULL.\n");
 
 		data_to_cpu();
-
-
-		printf("data_cpu: %X\n", data_cpu);
-		printf("data_gpu: %X\n", data_gpu);
 
 		for(int n = 0; n < 1; n++) {
 			for(int c = 0; c < 1; c++) {
@@ -510,7 +502,6 @@ public:
 	void data_to_cpu()
 	{
 		int count = N * C * H * W;
-		printf("count: %d\n", count);
 		if(data_cpu == NULL)
 			MallocHost((void**)&data_cpu, count * sizeof(float));
 		if(data_gpu != NULL)
@@ -2352,27 +2343,26 @@ public:
 
 	void SaveNetParams(int epoch) {
 		cudaSetDevice(gpu_id);
-		// stringstream f1; f1 << net_name << "_c1_weight_e" << epoch << ".mat";
-		// conv1->filtersBlob->save_cpu_data_and_diff_to_mat(f1.str().c_str());
-		conv1->filtersBlob->print_gpu_data(10);
+		stringstream f1; f1 << net_name << "_c1_weight_e" << epoch << ".mat";
+		conv1->filtersBlob->save_cpu_data_and_diff_to_mat(f1.str().c_str());
 
-//		stringstream f2; f2 << net_name << "_c1_bias_e" << epoch << ".mat";
-//		conv1->biasBlob->save_cpu_data_and_diff_to_mat(f2.str().c_str());
-//
-//		stringstream f3; f3 << net_name << "_c2_weight_e" << epoch << ".mat";
-//		conv2->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
-//		stringstream f4; f4 << net_name << "_c2_bias_e" << epoch << ".mat";
-//		conv2->biasBlob->save_cpu_data_and_diff_to_mat(f4.str().c_str());
-//
-//		stringstream f5; f5 << net_name << "_c3_weight_e" << epoch << ".mat";
-//		conv3->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
-//		stringstream f6; f6 << net_name << "_c3_bias_e" << epoch << ".mat";
-//		conv3->biasBlob->save_cpu_data_and_diff_to_mat(f6.str().c_str());
-//
-//		stringstream f7; f7 << net_name << "_ip1_weight_e" << epoch << ".mat";
-//		ip1->filtersBlob->save_cpu_data_and_diff_to_mat(f7.str().c_str());
-//		stringstream f8; f8 << net_name << "_ip1_bias_e" << epoch << ".mat";
-//		ip1->biasBlob->save_cpu_data_and_diff_to_mat(f8.str().c_str());
+		stringstream f2; f2 << net_name << "_c1_bias_e" << epoch << ".mat";
+		conv1->biasBlob->save_cpu_data_and_diff_to_mat(f2.str().c_str());
+
+		stringstream f3; f3 << net_name << "_c2_weight_e" << epoch << ".mat";
+		conv2->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
+		stringstream f4; f4 << net_name << "_c2_bias_e" << epoch << ".mat";
+		conv2->biasBlob->save_cpu_data_and_diff_to_mat(f4.str().c_str());
+
+		stringstream f5; f5 << net_name << "_c3_weight_e" << epoch << ".mat";
+		conv3->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
+		stringstream f6; f6 << net_name << "_c3_bias_e" << epoch << ".mat";
+		conv3->biasBlob->save_cpu_data_and_diff_to_mat(f6.str().c_str());
+
+		stringstream f7; f7 << net_name << "_ip1_weight_e" << epoch << ".mat";
+		ip1->filtersBlob->save_cpu_data_and_diff_to_mat(f7.str().c_str());
+		stringstream f8; f8 << net_name << "_ip1_bias_e" << epoch << ".mat";
+		ip1->biasBlob->save_cpu_data_and_diff_to_mat(f8.str().c_str());
 
 	}
 
@@ -2961,7 +2951,7 @@ int main(int argc, char *argv[]) {
 	float weight_decay = 0.0005;
 	int trn_batch_size = 600;
 	int tst_batch_size = 100;
-	int max_epoch_num = 1;
+	int max_epoch_num = 120;
 	string gpu_ids_str = "1,2,3";
 
 
@@ -3098,67 +3088,47 @@ int main(int argc, char *argv[]) {
 
 			cudaDeviceSynchronize();
 
-			printf("clear net params diff.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->ClearNetParamsDiff();
-			printf("clear net params diff(done).\n");
 			cudaDeviceSynchronize();
 
-			printf("add trn_net_i params diff into tst_net.\n");
 			cudaSetDevice(current_gpu_id);
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
-			printf("add trn_net_i params diff into tst_net(done).\n");
 			cudaDeviceSynchronize();
 
 			cudaSetDevice(current_gpu_id);
 			if(epoch==0 && iter==0) {
 				tst_net->SaveNetParams(0);
 			}
-			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
-			printf("update tst_net params.\n");
 			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
-			printf("update tst_net params(done).\n");
 			cudaDeviceSynchronize();
-
-			error = cudaGetLastError();
-			printf("epoch[%d],iter[%d]: %s\n", epoch, iter, cudaGetErrorString(error));
 
 			cudaSetDevice(current_gpu_id);
 			if(epoch==0 && iter==0) {
 				tst_net->SaveNetParams(1);
 			}
-
-			break;
 		}
-		break;
 	}
 
 	for(int i = 0; i < gpus.size(); i++) {
 		cudaSetDevice(gpus[i]);
 		delete trn_nets[i]; trn_nets[i] = NULL;
 	}
-	error = cudaGetLastError();
-	printf("error after delete trn_nets: %s\n", cudaGetErrorString(error));
 
 	cudaSetDevice(current_gpu_id);
 	batch_samples_slices.clear();
 	batch_labels_slices.clear();
 
 	delete tst_net;
-	error = cudaGetLastError();
-	printf("error after delete tst_net: %s\n", cudaGetErrorString(error));
 
 	delete trn_data_param; trn_data_param = NULL;
 	delete trn_data_layer; trn_data_layer = NULL;
 	delete tst_data_param; tst_data_param = NULL;
 	delete tst_data_layer; tst_data_layer = NULL;
-	error = cudaGetLastError();
-	printf("error after delete datalayer: %s\n", cudaGetErrorString(error));
 
 	if(num_gpus >= gpus.size()) {
 		printf("disable P2P: ");
