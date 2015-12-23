@@ -572,7 +572,11 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 	int count = src->count();
 	if(src_gpu_id == dst_gpu_id) {
 		cudaSetDevice(dst_gpu_id);
-		gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
+		float *temp_data_in_dst = NULL;
+		CUDA_CHECK( cudaMalloc((void**)&temp_data_in_dst, count * sizeof(float)) );
+		CUDA_CHECK( cudaMemcpy(temp_data_in_dst, src->diff_gpu, count * sizeof(float), cudaMemcpyDefault) );
+		gpu_add(count, temp_data_in_dst, dst->diff_gpu, dst->diff_gpu);
+		CUDA_CHECK( cudaFree(temp_data_in_dst) );
 	} else {
 		cudaDeviceProp prop[2];
 		cudaGetDeviceProperties(&prop[0], src_gpu_id);
@@ -582,7 +586,11 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 		const bool has_uva = (prop[0].unifiedAddressing && prop[1].unifiedAddressing);
 		if(can_access_peer || has_uva) {
 			cudaSetDevice(dst_gpu_id);
-			gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
+			float *temp_data_in_dst = NULL;
+			CUDA_CHECK( cudaMalloc((void**)&temp_data_in_dst, count * sizeof(float)) );
+			CUDA_CHECK( cudaMemcpy(temp_data_in_dst, src->diff_gpu, count * sizeof(float), cudaMemcpyDefault) );
+			gpu_add(count, temp_data_in_dst, dst->diff_gpu, dst->diff_gpu);
+			CUDA_CHECK( cudaFree(temp_data_in_dst) );
 		} else {
 			float *temp_data = NULL;
 			float *dst_temp_data = NULL;
