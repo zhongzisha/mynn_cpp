@@ -2954,7 +2954,7 @@ int main(int argc, char *argv[]) {
 	int trn_batch_size = 100;
 	int tst_batch_size = 100;
 	int max_epoch_num = 1;
-	string gpus_ids_str = "1,2,3";
+	string gpu_ids_str = "1,2,3";
 
 
 	int current_gpu_id;
