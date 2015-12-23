@@ -563,11 +563,7 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 	int count = src->count();
 	if(src_gpu_id == dst_gpu_id) {
 		cudaSetDevice(dst_gpu_id);
-		float *temp_data_in_dst = NULL;
-		CUDA_CHECK( cudaMalloc((void**)&temp_data_in_dst, count * sizeof(float)) );
-		CUDA_CHECK( cudaMemcpy(temp_data_in_dst, src->diff_gpu, count * sizeof(float), cudaMemcpyDefault) );
-		gpu_add(count, temp_data_in_dst, dst->diff_gpu, dst->diff_gpu);
-		CUDA_CHECK( cudaFree(temp_data_in_dst) );
+		gpu_add(count, src->diff_gpu, dst->diff_gpu, dst->diff_gpu);
 	} else {
 		cudaDeviceProp prop[2];
 		cudaGetDeviceProperties(&prop[0], src_gpu_id);
@@ -587,14 +583,12 @@ void AddBlobDiff_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu
 			float *dst_temp_data = NULL;
 			cudaSetDevice(src_gpu_id);
 			MallocHost((void **)&temp_data, count * sizeof(float));
-			// temp_data = (float*)malloc(count * sizeof(float));
 			CUDA_CHECK( cudaMemcpy(temp_data, src->diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 			cudaSetDevice(dst_gpu_id);
 			CUDA_CHECK( cudaMalloc((void **)&dst_temp_data, count * sizeof(float)) );
 			CUDA_CHECK( cudaMemcpy(dst_temp_data, temp_data, count * sizeof(float), cudaMemcpyHostToDevice) );
 			gpu_add(count, dst_temp_data, dst->diff_gpu, dst->diff_gpu);
 			FreeHost(temp_data);
-			// free(temp_data); temp_data = NULL;
 			CUDA_CHECK( cudaFree(dst_temp_data) );
 		}
 	}
@@ -2988,7 +2982,7 @@ int main(int argc, char *argv[]) {
 	cudaSetDevice(current_gpu_id);
 	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
-	tst_net->SaveNetParams(100);
+	tst_net->SaveNetParams(0);
 
 	vector<Network_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
@@ -3082,17 +3076,15 @@ int main(int argc, char *argv[]) {
 			cudaDeviceSynchronize();
 
 			cudaSetDevice(current_gpu_id);
-			if(epoch==0 && iter==0) {
-				tst_net->SaveNetParams(0);
-			}
-
-			cudaSetDevice(current_gpu_id);
 			tst_net->UpdateNet();
 			cudaDeviceSynchronize();
 
 			cudaSetDevice(current_gpu_id);
-			if(epoch==0 && iter==0) {
-				tst_net->SaveNetParams(1);
+			// update learning rate
+			if((epoch != 0) && (epoch % lr_stepsize == 0))
+			{
+				lr_rate /= 10;
+				tst_net->SaveNetParams(epoch);
 			}
 		}
 	}
