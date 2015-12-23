@@ -3062,7 +3062,7 @@ int main(int argc, char *argv[]) {
 			cudaDeviceSynchronize();
 
 			cudaSetDevice(current_gpu_id);
-			tst_net->UpdateNet(gpus.size());
+			tst_net->UpdateNet(-1.0f / (gpus.size()));
 			cudaDeviceSynchronize();
 
 			cudaSetDevice(current_gpu_id);
