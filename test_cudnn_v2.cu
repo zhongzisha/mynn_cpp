@@ -2306,16 +2306,16 @@ public:
 		ComputeUpdateValueSingle(ip1->biasBlob,      ip1_biasBlob_old, 		lr_rate, momentum, weight_decay);
 	}
 
-	void UpdateNet() {
+	void UpdateNet(float scale = -1.0f) {
 		cudaSetDevice(gpu_id);
-		gpu_axpy(cublas_handle, conv3->filtersBlob->count(), float(-1), conv3->filtersBlob->diff_gpu, conv3->filtersBlob->data_gpu);
-		gpu_axpy(cublas_handle, conv3->biasBlob->count(), 	 float(-1), conv3->biasBlob->diff_gpu, 	  conv3->biasBlob->data_gpu);
-		gpu_axpy(cublas_handle, conv2->filtersBlob->count(), float(-1), conv2->filtersBlob->diff_gpu, conv2->filtersBlob->data_gpu);
-		gpu_axpy(cublas_handle, conv2->biasBlob->count(), 	 float(-1), conv2->biasBlob->diff_gpu, 	  conv2->biasBlob->data_gpu);
-		gpu_axpy(cublas_handle, conv1->filtersBlob->count(), float(-1), conv1->filtersBlob->diff_gpu, conv1->filtersBlob->data_gpu);
-		gpu_axpy(cublas_handle, conv1->biasBlob->count(), 	 float(-1), conv1->biasBlob->diff_gpu,    conv1->biasBlob->data_gpu);
-		gpu_axpy(cublas_handle, ip1->filtersBlob->count(),   float(-1), ip1->filtersBlob->diff_gpu,   ip1->filtersBlob->data_gpu);
-		gpu_axpy(cublas_handle, ip1->biasBlob->count(), 	 float(-1), ip1->biasBlob->diff_gpu,      ip1->biasBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv3->filtersBlob->count(), float(scale), conv3->filtersBlob->diff_gpu, conv3->filtersBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv3->biasBlob->count(), 	 float(scale), conv3->biasBlob->diff_gpu, 	  conv3->biasBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv2->filtersBlob->count(), float(scale), conv2->filtersBlob->diff_gpu, conv2->filtersBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv2->biasBlob->count(), 	 float(scale), conv2->biasBlob->diff_gpu, 	  conv2->biasBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv1->filtersBlob->count(), float(scale), conv1->filtersBlob->diff_gpu, conv1->filtersBlob->data_gpu);
+		gpu_axpy(cublas_handle, conv1->biasBlob->count(), 	 float(scale), conv1->biasBlob->diff_gpu,    conv1->biasBlob->data_gpu);
+		gpu_axpy(cublas_handle, ip1->filtersBlob->count(),   float(scale), ip1->filtersBlob->diff_gpu,   ip1->filtersBlob->data_gpu);
+		gpu_axpy(cublas_handle, ip1->biasBlob->count(), 	 float(scale), ip1->biasBlob->diff_gpu,      ip1->biasBlob->data_gpu);
 	}
 
 	void SaveNetParams(int epoch) {
@@ -3063,7 +3063,7 @@ int main(int argc, char *argv[]) {
 			cudaDeviceSynchronize();
 
 			cudaSetDevice(current_gpu_id);
-			tst_net->UpdateNet();
+			tst_net->UpdateNet(gpus.size());
 			cudaDeviceSynchronize();
 
 			cudaSetDevice(current_gpu_id);
