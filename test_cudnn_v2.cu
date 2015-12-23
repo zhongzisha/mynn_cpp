@@ -2903,34 +2903,21 @@ int main_single_gpu_ok(int argc, char **argv) {
 }
 
 int main(int argc, char *argv[]) {
-//	if(argc != 12) {
-//		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
-//		return -1;
-//	}
-//	string trn_db_filename = string(argv[1]);
-//	string tst_db_filename = string(argv[2]);
-//	string mean_file = string(argv[3]);
-//	float lr_rate = atof(argv[4]);
-//	int lr_stepsize = atoi(argv[5]);
-//	float momentum = atof(argv[6]);
-//	float weight_decay = atof(argv[7]);
-//	int trn_batch_size = atoi(argv[8]);
-//	int tst_batch_size = atoi(argv[9]);
-//	int max_epoch_num = atoi(argv[10]);
-//	string gpu_ids_str = string(argv[11]);
-
-	string trn_db_filename = "./data/cifar10_train_lmdb";
-	string tst_db_filename = "./data/cifar10_test_lmdb";
-	string mean_file = "./data/mean.binaryproto";
-	float lr_rate = 0.001;
-	int lr_stepsize = 20;
-	float momentum = 0.9;
-	float weight_decay = 0.0005;
-	int trn_batch_size = 600;
-	int tst_batch_size = 100;
-	int max_epoch_num = 120;
-	string gpu_ids_str = "1,2,3";
-
+	if(argc != 12) {
+		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+		return -1;
+	}
+	string trn_db_filename = string(argv[1]);
+	string tst_db_filename = string(argv[2]);
+	string mean_file = string(argv[3]);
+	float lr_rate = atof(argv[4]);
+	int lr_stepsize = atoi(argv[5]);
+	float momentum = atof(argv[6]);
+	float weight_decay = atof(argv[7]);
+	int trn_batch_size = atoi(argv[8]);
+	int tst_batch_size = atoi(argv[9]);
+	int max_epoch_num = atoi(argv[10]);
+	string gpu_ids_str = string(argv[11]);
 
 	int current_gpu_id;
 	cudaGetDevice(&current_gpu_id);
