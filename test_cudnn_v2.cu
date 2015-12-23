@@ -900,6 +900,15 @@ public:
 				top->H,
 				top->W) );
 
+		// add bias
+		CUDNN_CHECK( cudnnSetTensor4dDescriptor(biasTensorDesc,
+				tensorFormat,
+				dataType,
+				1,
+				top->C,
+				1,
+				1) );
+
 		top->allocate_gpu_data();
 		top->allocate_gpu_diff();
 	}
@@ -945,14 +954,6 @@ public:
 				topTensorDesc,
 				top->data_gpu) );
 
-		// add bias
-		CUDNN_CHECK( cudnnSetTensor4dDescriptor(biasTensorDesc,
-				tensorFormat,
-				dataType,
-				1,
-				top->C,
-				1,
-				1) );
 		alpha = float(1);
 		beta  = float(1);
 		CUDNN_CHECK( cudnnAddTensor(cudnnHandle, CUDNN_ADD_SAME_C,
@@ -1008,6 +1009,310 @@ public:
 
 	}
 };
+
+class ConvolutionWithGroupParameter_t
+{
+public:
+	int group;
+	int filter_N;
+	int filter_C;
+	int filter_H;
+	int filter_W;
+	int pad_h, pad_w;
+	int stride_h, stride_w;
+	int upscale_h, upscale_w;
+	cudnnConvolutionMode_t cudnn_conv_mode;
+	cudnnConvolutionFwdPreference_t cudnn_conv_fwd_preference; // CUDNN_CONVOLUTION_FWD_PREFER_FASTEST
+};
+
+class ConvolutionWithGroupLayer_t
+{
+public:
+	Blob_t *filtersBlob;
+	Blob_t *biasBlob;
+
+	int CUDNN_STREAMS_PER_GROUP;
+	bool handles_setup_;
+	cudnnHandle_t* handle_;
+	cudaStream_t*  stream_;
+
+	cudnnDataType_t dataType;
+	cudnnTensorFormat_t tensorFormat;
+
+	cudnnTensorDescriptor_t bottomTensorDesc;
+	cudnnTensorDescriptor_t topTensorDesc;
+	cudnnFilterDescriptor_t filterDesc;
+	cudnnTensorDescriptor_t    biasTensorDesc;
+	cudnnConvolutionDescriptor_t convDesc;
+	int bottom_offset_, top_offset_, weight_offset_, bias_offset_;
+
+	ConvolutionWithGroupParameter_t *convwithgroup_params;
+
+
+	ConvolutionWithGroupLayer_t(const ConvolutionWithGroupParameter_t *convwithgroup_params_)
+	{
+		CUDNN_STREAMS_PER_GROUP = 3;
+		convwithgroup_params = const_cast<ConvolutionWithGroupParameter_t*>(convwithgroup_params_);
+		filtersBlob = new Blob_t(convwithgroup_params->filter_N, convwithgroup_params->filter_C, convwithgroup_params->filter_H, convwithgroup_params->filter_W);
+		biasBlob = new Blob_t(1, convwithgroup_params->filter_C, 1, 1);
+
+		filtersBlob->allocate_gpu_data();
+		filtersBlob->allocate_gpu_diff();
+		biasBlob->allocate_gpu_data();
+		biasBlob->allocate_gpu_diff();
+
+		dataType = CUDNN_DATA_FLOAT;
+		tensorFormat = CUDNN_TENSOR_NCHW;
+
+		// Initialize CUDA streams and cuDNN.
+		stream_         = new cudaStream_t[convwithgroup_params->group * CUDNN_STREAMS_PER_GROUP];
+		handle_         = new cudnnHandle_t[convwithgroup_params->group * CUDNN_STREAMS_PER_GROUP];
+
+		for (int g = 0; g < convwithgroup_params->group * CUDNN_STREAMS_PER_GROUP; g++) {
+			CUDA_CHECK(cudaStreamCreate(&stream_[g]));
+			CUDNN_CHECK(cudnnCreate(&handle_[g]));
+			CUDNN_CHECK(cudnnSetStream(handle_[g], stream_[g]));
+		}
+		CUDNN_CHECK( cudnnCreateTensorDescriptor(&bottomTensorDesc) );
+		CUDNN_CHECK( cudnnCreateTensorDescriptor(&topTensorDesc) );
+		CUDNN_CHECK( cudnnCreateConvolutionDescriptor(&convDesc) );
+		CUDNN_CHECK( cudnnCreateTensorDescriptor(&biasTensorDesc) );
+		CUDNN_CHECK( cudnnCreateFilterDescriptor(&filterDesc) );
+
+		handles_setup_ = true;
+		bottom_offset_ = 0;
+		top_offset_ = 0;
+		weight_offset_ = 0;
+		bias_offset_ = 0;
+	};
+
+	~ConvolutionWithGroupLayer_t()
+	{
+		delete filtersBlob; filtersBlob = NULL;
+		delete biasBlob; biasBlob = NULL;
+
+		// Check that handles have been setup before destroying.
+		if (!handles_setup_) { return; }
+
+		CUDNN_CHECK( cudnnDestroyTensorDescriptor(bottomTensorDesc) );
+		CUDNN_CHECK( cudnnDestroyTensorDescriptor(topTensorDesc) );
+		CUDNN_CHECK( cudnnDestroyConvolutionDescriptor(convDesc) );
+		CUDNN_CHECK( cudnnDestroyTensorDescriptor(biasTensorDesc) );
+		CUDNN_CHECK( cudnnDestroyFilterDescriptor(filterDesc) );
+
+		for (int g = 0; g < convwithgroup_params->group * CUDNN_STREAMS_PER_GROUP; g++) {
+			cudaStreamDestroy(stream_[g]);
+			cudnnDestroy(handle_[g]);
+		}
+
+		delete [] stream_;
+		delete [] handle_;
+
+	}
+
+
+	void Setup(const Blob_t *bottom, Blob_t *top)
+	{
+
+//		// Set the indexing parameters.
+//		weight_offset_ = (this->num_output_ / this->group_)
+//		    		  * (this->channels_ / this->group_) * this->kernel_h_ * this->kernel_w_;
+//		bias_offset_ = (this->num_output_ / this->group_);
+		// Set the indexing parameters.
+		// printf("get weight_offset_ and bias_offst_\n");
+		weight_offset_ = (convwithgroup_params->filter_C / convwithgroup_params->group)
+		    		  * (convwithgroup_params->filter_N / convwithgroup_params->group)
+		    		  * convwithgroup_params->filter_H * convwithgroup_params->filter_W;
+		bias_offset_ = (convwithgroup_params->filter_C / convwithgroup_params->group);
+		// printf("get weight_offset_ and bias_offst_(%d, %d)\n", weight_offset_, bias_offset_);
+
+		// printf("create bottomTensorDesc\n");
+		CUDNN_CHECK( cudnnSetTensor4dDescriptor(bottomTensorDesc,
+				tensorFormat,
+				dataType,
+				bottom->N,
+				bottom->C / convwithgroup_params->group,
+				bottom->H,
+				bottom->W) );
+
+		// printf("create filterDesc\n");
+		CUDNN_CHECK( cudnnSetFilter4dDescriptor(filterDesc,
+				dataType,
+				filtersBlob->C / convwithgroup_params->group,
+				bottom->C / convwithgroup_params->group,
+				filtersBlob->H,
+				filtersBlob->W) );
+
+
+		// printf("create convDesc\n");
+		CUDNN_CHECK( cudnnSetConvolution2dDescriptor(convDesc,
+				convwithgroup_params->pad_h, // padding
+				convwithgroup_params->pad_w,
+				convwithgroup_params->stride_h, // stride
+				convwithgroup_params->stride_w,
+				convwithgroup_params->upscale_h, // upscale
+				convwithgroup_params->upscale_w,
+				convwithgroup_params->cudnn_conv_mode) );
+
+		// printf("get top shape\n");
+		// find dimension of convolution output
+		CUDNN_CHECK( cudnnGetConvolution2dForwardOutputDim(convDesc,
+				bottomTensorDesc,
+				filterDesc,
+				&(top->N),
+				&(top->C),
+				&(top->H),
+				&(top->W)) );
+		top->C = filtersBlob->C;
+		// printf("get top shape (%d, %d, %d, %d)\n", top->N, top->C, top->H, top->W);
+
+		// printf("create topTensorDesc\n");
+		CUDNN_CHECK( cudnnSetTensor4dDescriptor(topTensorDesc,
+				tensorFormat,
+				dataType,
+				top->N,
+				top->C,
+				top->H,
+				top->W) );
+
+		// printf("create biasTensorDesc\n");
+		// add bias
+		CUDNN_CHECK( cudnnSetTensor4dDescriptor(biasTensorDesc,
+				tensorFormat,
+				dataType,
+				1,
+				top->C,
+				1,
+				1) );
+
+		top->allocate_gpu_data();
+		top->allocate_gpu_diff();
+
+//		bottom_offset_ = (this->channels_ / this->group_)
+//		    		  * this->height_ * this->width_;
+//		top_offset_ = (this->num_output_ / this->group_)
+//		    		  * this->height_out_ * this->width_out_;
+		// printf("get bottom_offset_ and top_offset_\n");
+		bottom_offset_ = (bottom->C / convwithgroup_params->group)
+		    		  * bottom->H * bottom->W;
+		top_offset_ = (top->C / convwithgroup_params->group)
+		    		  * top->H * top->W;
+	}
+
+	void Forward(const Blob_t *bottom, Blob_t *top)
+	{
+	    const float* bottom_data = bottom->data_gpu;
+	    float* top_data = top->data_gpu;
+	    const float* weight = filtersBlob->data_gpu;
+	    const float* bias_data = biasBlob->data_gpu;
+		for(int g = 0; g < convwithgroup_params->group; g++) {
+			cudnnConvolutionFwdAlgo_t algo;
+			CUDNN_CHECK( cudnnGetConvolutionForwardAlgorithm(handle_[g],
+					bottomTensorDesc,
+					filterDesc,
+					convDesc,
+					topTensorDesc,
+					convwithgroup_params->cudnn_conv_fwd_preference,
+					0,
+					&algo ) );
+
+			size_t sizeInBytes=0;
+			void* workSpace=NULL;
+			CUDNN_CHECK( cudnnGetConvolutionForwardWorkspaceSize(handle_[g],
+					bottomTensorDesc,
+					filterDesc,
+					convDesc,
+					topTensorDesc,
+					algo,
+					&sizeInBytes) );
+			if (sizeInBytes!=0)
+			{
+				CUDA_CHECK( cudaMalloc(&workSpace,sizeInBytes) );
+			}
+			float alpha = float(1);
+			float beta  = float(0);
+			CUDNN_CHECK( cudnnConvolutionForward(handle_[g],
+					&alpha,
+					bottomTensorDesc,
+					bottom_data + bottom_offset_ * g,
+					filterDesc,
+					weight + weight_offset_ * g,
+					convDesc,
+					algo,
+					workSpace,
+					sizeInBytes,
+					&beta,
+					topTensorDesc,
+					top_data + top_offset_ * g) );
+
+			// add bias
+			alpha = float(1);
+			beta  = float(1);
+			CUDNN_CHECK( cudnnAddTensor(handle_[g], CUDNN_ADD_SAME_C,
+					&alpha,
+					biasTensorDesc,
+					bias_data + bias_offset_ * g,
+					&beta,
+					topTensorDesc,
+					top_data + top_offset_ * g) );
+
+			// free buffer
+			if (sizeInBytes!=0)
+			{
+				CUDA_CHECK( cudaFree(workSpace) );
+			}
+		}
+
+	}
+
+	void Backward(const Blob_t *top, Blob_t *bottom)
+	{
+
+		float alpha = (float)1.0f;
+		float beta = (float)0.0f;
+		float *weight = filtersBlob->data_gpu;
+		float *weight_diff = filtersBlob->diff_gpu;
+		gpu_set(filtersBlob->count(), float(0), weight_diff);
+		float *bias_diff = biasBlob->diff_gpu;
+		gpu_set(biasBlob->count(), float(0), bias_diff);
+		const float* top_diff = top->diff_gpu;
+		const float* bottom_data = bottom->data_gpu;
+		float* bottom_diff = bottom->diff_gpu;
+		for(int g = 0; g < convwithgroup_params->group; g++) {
+			CUDNN_CHECK(cudnnConvolutionBackwardBias(handle_[0 * convwithgroup_params->group + g],
+					&alpha,
+					topTensorDesc,
+					top_diff + top_offset_ * g,
+					&beta,
+					biasTensorDesc,
+					bias_diff + bias_offset_ * g));
+
+			CUDNN_CHECK(cudnnConvolutionBackwardFilter(handle_[1 * convwithgroup_params->group + g],
+					&alpha,
+					bottomTensorDesc,
+					bottom_data + bottom_offset_ * g,
+					topTensorDesc,
+					top_diff + top_offset_ * g,
+					convDesc,
+					&beta,
+					filterDesc,
+					weight_diff + weight_offset_ * g));
+
+			CUDNN_CHECK(cudnnConvolutionBackwardData(handle_[2 * convwithgroup_params->group + g],
+					&alpha,
+					filterDesc,
+					weight + weight_offset_ * g,
+					topTensorDesc,
+					top_diff + top_offset_ * g,
+					convDesc,
+					&beta,
+					bottomTensorDesc,
+					bottom_diff + bottom_offset_ * g));
+		}
+
+	}
+};
+
 
 class ActivationParameter_t
 {
@@ -2902,7 +3207,7 @@ int main_single_gpu_ok(int argc, char **argv) {
 	return 0;
 }
 
-int main(int argc, char *argv[]) {
+int main_multi_gpu_ok(int argc, char *argv[]) {
 	if(argc != 12) {
 		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
@@ -3102,4 +3407,136 @@ int main(int argc, char *argv[]) {
 	free(threads); threads = NULL;
 	cudaDeviceReset();
 	exit(EXIT_SUCCESS);
+}
+
+int main_conv_with_group_seems_ok(int argc, char **argv) {
+
+	cudaStream_t curand_stream;
+	curandRngType_t curand_rngtype;
+	curandGenerator_t curand_generator;
+	cublasHandle_t cublas_handle;
+	CUDA_CHECK( cudaStreamCreate(&curand_stream) );
+	curand_rngtype = CURAND_RNG_PSEUDO_DEFAULT;
+	CURAND_CHECK( curandCreateGenerator(&curand_generator, curand_rngtype) );
+	CURAND_CHECK( curandSetStream(curand_generator, curand_stream) );
+	CUBLAS_CHECK( cublasCreate(&cublas_handle) );
+
+	Blob_t *batch_samples = new Blob_t(16, 3, 227, 227);
+	Blob_t *batch_labels = new Blob_t(16, 1, 1, 1);
+	batch_samples->allocate_gpu_data();
+	batch_samples->allocate_gpu_diff();
+	batch_labels->allocate_gpu_data();
+	batch_labels->allocate_cpu_data();
+
+	CURAND_CHECK( curandGenerateNormal(curand_generator, batch_samples->data_gpu, batch_samples->count(), (float)0.0f, (float)0.1f) );
+	for(int i=0; i<batch_labels->count(); i++) {
+		batch_labels->data_cpu[i] = i%10;
+	}
+	batch_labels->data_to_gpu();
+
+	printf("conv1 setup.\n");
+	Blob_t *conv1_top = new Blob_t();
+	ConvolutionParameter_t *conv1_params = new ConvolutionParameter_t();
+	conv1_params->filter_N = 3;
+	conv1_params->filter_C = 96;
+	conv1_params->filter_H = 11;
+	conv1_params->filter_W = 11;
+	conv1_params->pad_h = 0;
+	conv1_params->pad_w = 0;
+	conv1_params->stride_h = 4;
+	conv1_params->stride_w = 4;
+	conv1_params->upscale_h = 1;
+	conv1_params->upscale_w = 1;
+	conv1_params->cudnn_conv_mode = CUDNN_CROSS_CORRELATION;
+	ConvolutionLayer_t *conv1 = new ConvolutionLayer_t(conv1_params);
+	CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->filtersBlob->data_gpu, conv1->filtersBlob->count(), (float)0.0f, (float)0.0001f) );
+	gpu_set(conv1->biasBlob->count(), 0, conv1->biasBlob->data_gpu);
+	conv1->Setup(batch_samples, conv1_top);
+
+	printf("mp1 setup.\n");
+	Blob_t *mp1_top = new Blob_t();
+	PoolingParameter_t *mp1_params = new PoolingParameter_t();
+	mp1_params->cudnn_pooling_mode = CUDNN_POOLING_MAX;
+	mp1_params->poolsize_h = 3;
+	mp1_params->poolsize_w = 3;
+	mp1_params->pad_h = 0;
+	mp1_params->pad_w = 0;
+	mp1_params->stride_h = 2;
+	mp1_params->stride_w = 2;
+	PoolingLayer_t *mp1 = new PoolingLayer_t(mp1_params);
+	mp1->Setup(conv1_top, mp1_top);
+
+	printf("conv2g setup.\n");
+	Blob_t *conv2g_top = new Blob_t();
+	ConvolutionWithGroupParameter_t *conv2g_params = new ConvolutionWithGroupParameter_t();
+	conv2g_params->group = 2;
+	conv2g_params->filter_N = 96;
+	conv2g_params->filter_C = 256;
+	conv2g_params->filter_H = 5;
+	conv2g_params->filter_W = 5;
+	conv2g_params->pad_h = 2;
+	conv2g_params->pad_w = 2;
+	conv2g_params->stride_h = 1;
+	conv2g_params->stride_w = 1;
+	conv2g_params->upscale_h = 1;
+	conv2g_params->upscale_w = 1;
+	conv2g_params->cudnn_conv_mode = CUDNN_CROSS_CORRELATION;
+	conv2g_params->cudnn_conv_fwd_preference = CUDNN_CONVOLUTION_FWD_PREFER_FASTEST;
+	ConvolutionWithGroupLayer_t *conv2g = new ConvolutionWithGroupLayer_t(conv2g_params);
+	printf("init\n");
+	CURAND_CHECK( curandGenerateNormal(curand_generator, conv2g->filtersBlob->data_gpu, conv2g->filtersBlob->count(), (float)0.0f, (float)0.01f) );
+	gpu_set(conv2g->biasBlob->count(), 0, conv2g->biasBlob->data_gpu);
+	conv2g->Setup(mp1_top, conv2g_top);
+
+	printf("mp2 setup.\n");
+	Blob_t *mp2_top = new Blob_t();
+	PoolingParameter_t *mp2_params = new PoolingParameter_t();
+	mp2_params->cudnn_pooling_mode = CUDNN_POOLING_MAX;
+	mp2_params->poolsize_h = 3;
+	mp2_params->poolsize_w = 3;
+	mp2_params->pad_h = 0;
+	mp2_params->pad_w = 0;
+	mp2_params->stride_h = 2;
+	mp2_params->stride_w = 2;
+	PoolingLayer_t *mp2 = new PoolingLayer_t(mp1_params);
+	mp2->Setup(conv2g_top, mp2_top);
+
+	conv1->Forward(batch_samples, conv1_top);
+	printf("conv1: (%d, %d, %d, %d)\n", conv1_top->N, conv1_top->C, conv1_top->H, conv1_top->W);
+
+	mp1->Forward(conv1_top, mp1_top);
+	printf("mp1: (%d, %d, %d, %d)\n", mp1_top->N, mp1_top->C, mp1_top->H, mp1_top->W);
+
+	conv2g->Forward(mp1_top, conv2g_top);
+	printf("conv2g_top: (%d, %d, %d, %d)\n", conv2g_top->N, conv2g_top->C, conv2g_top->H, conv2g_top->W);
+
+	mp2->Forward(conv2g_top, mp2_top);
+	printf("mp2: (%d, %d, %d, %d)\n", mp2_top->N, mp2_top->C, mp2_top->H, mp2_top->W);
+
+	mp2->Backward(mp2_top, conv2g_top);
+
+	conv2g->Backward(conv2g_top, mp1_top);
+
+	mp1->Backward(mp1_top, conv1_top);
+
+	conv1->Backward(conv1_top, batch_samples);
+
+
+	delete conv1;
+	delete conv1_top;
+	delete conv1_params;
+	delete mp1;
+	delete mp1_top;
+	delete mp1_params;
+	delete conv2g;
+	delete conv2g_top;
+	delete conv2g_params;
+	delete mp2;
+	delete mp2_top;
+	delete mp2_params;
+
+	CURAND_CHECK( curandDestroyGenerator(curand_generator) );
+	CUDA_CHECK( cudaStreamDestroy(curand_stream) );
+	CUBLAS_CHECK( cublasDestroy(cublas_handle) );
+	return 0;
 }
