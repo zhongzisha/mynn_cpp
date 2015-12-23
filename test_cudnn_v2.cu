@@ -377,6 +377,7 @@ public:
 
 		if(data_gpu == NULL)
 			printf("gpu data is NULL.\n");
+
 		data_to_cpu();
 
 
@@ -509,6 +510,7 @@ public:
 	void data_to_cpu()
 	{
 		int count = N * C * H * W;
+		printf("count: %d\n", count);
 		if(data_cpu == NULL)
 			MallocHost((void**)&data_cpu, count * sizeof(float));
 		if(data_gpu != NULL)
