@@ -4362,7 +4362,7 @@ int main(int argc, char *argv[]) {
 	cudaSetDevice(main_gpu_id);
 	Network_t *tst_net = new Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
-	tst_net->SaveNetParams(0);
+	// tst_net->SaveNetParams(0);
 
 	vector<Network_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
@@ -4462,7 +4462,7 @@ int main(int argc, char *argv[]) {
 			if((epoch != 0) && (epoch % lr_stepsize == 0))
 			{
 				lr_rate /= 10;
-				tst_net->SaveNetParams(epoch);
+				// tst_net->SaveNetParams(epoch);
 			}
 		}
 	}
