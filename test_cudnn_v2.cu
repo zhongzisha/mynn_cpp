@@ -124,38 +124,28 @@ const char* cublasGetErrorString(cublasStatus_t error) {
 		do { \
 			cudaError_t error = condition; \
 			if (error != cudaSuccess) \
-			printf("CUDA Error in %s(%d): %s\n", __FILE__, __LINE__, cudaGetErrorString(error)); \
+			LOG(FATAL) << "CUDA ERROR: " << cudaGetErrorString(error); \
 		} while (0)
 
 #define CUBLAS_CHECK(condition) \
 		do { \
 			cublasStatus_t status = condition; \
 			if (status != CUBLAS_STATUS_SUCCESS) \
-			printf("CUBLAS Error in %s(%d): %s\n", __FILE__, __LINE__, cublasGetErrorString(status)); \
+			LOG(FATAL) << "CUBLAS ERROR: " << cublasGetErrorString(status); \
 		} while (0)
 
 #define CURAND_CHECK(condition) \
 		do { \
 			curandStatus_t status = condition; \
 			if (status != CURAND_STATUS_SUCCESS) \
-			printf("CURAND Error in %s(%d): %s\n", __FILE__, __LINE__, curandGetErrorString(status)); \
+			LOG(FATAL) << "CURAND ERROR: " << curandGetErrorString(status); \
 		} while (0)
 
 #define CUDNN_CHECK(status) \
 		do { \
 			if (status != CUDNN_STATUS_SUCCESS) \
-			printf("CUDNN Error in %s(%d): %s\n", __FILE__, __LINE__, cudnnGetErrorString(status)); \
+			LOG(FATAL) << "CUDNN ERROR: " << cudnnGetErrorString(status); \
 		} while (0)
-
-#define EXIT_WAIVED 0
-#define FatalError(s) {                                                \
-		std::stringstream _where, _message;                                \
-		_where << __FILE__ << ':' << __LINE__;                             \
-		_message << std::string(s) + "\n" << __FILE__ << ':' << __LINE__;\
-		std::cerr << _message.str() << "\nAborting...\n";                  \
-		cudaDeviceReset();                                                 \
-		exit(EXIT_FAILURE);                                                \
-		}
 
 
 inline void MallocHost(void** ptr, size_t size) {
@@ -187,10 +177,12 @@ void EnableP2P(vector<int> gpus)
 				cudaDeviceEnablePeerAccess(gpus[i], 0);
 				const bool has_uva = (prop[gpus[i]].unifiedAddressing && prop[gpus[j]].unifiedAddressing);
 				if(has_uva) {
-					printf("(%d <--> %d): YES!\n", gpus[i], gpus[j]);
+					// printf("(%d <--> %d): YES!\n", gpus[i], gpus[j]);
+					LOG(INFO) << gpus[i] << " <--> " << gpus[j] << ": UVA YES!\n";
 				}
 			} else {
-				printf("(%d <--> %d): NO!\n", gpus[i], gpus[j]);
+				// printf("(%d <--> %d): NO!\n", gpus[i], gpus[j]);
+				LOG(INFO) << gpus[i] << " <--> " << gpus[j] << ": UVA NO!\n";
 			}
 		}
 	}
@@ -355,7 +347,7 @@ public:
 
 	void print_gpu_data() {
 		if(data_gpu == NULL)
-			printf("gpu data is NULL.\n");
+			return;
 		data_to_cpu();
 		for(int n = 0; n < N; n++) {
 			for(int c = 0; c < C; c++) {
@@ -372,7 +364,7 @@ public:
 
 	void print_gpu_data(int howmany) {
 		if(data_gpu == NULL)
-			printf("gpu data is NULL.\n");
+			return;
 
 		data_to_cpu();
 
@@ -390,7 +382,7 @@ public:
 
 	void print_cpu_data(int howmany) {
 		if(data_cpu == NULL)
-			printf("data_cpu is NULL.\n");
+			return;
 		for(int n = 0; n < 1; n++) {
 			for(int c = 0; c < 1; c++) {
 				for(int h = 0; h < 1; h++) {
@@ -418,9 +410,9 @@ public:
 		// save data
 		matvar = Mat_VarCreate("data", matio_class_map<float>(), matio_type_map<float>(), 4, dims, data_cpu, 0);
 		if(matvar == NULL)
-			cout << "Error creating 'data' variable";
+			LOG(FATAL) << "Error creating 'data' variable";
 		if(Mat_VarWrite(matfp, matvar, MAT_COMPRESSION_NONE) != 0)
-			cout << "Error saving array 'data' into MAT file " << fname;
+			LOG(FATAL) << "Error saving array 'data' into MAT file " << fname;
 		Mat_VarFree(matvar);
 
 		// save diff
@@ -430,9 +422,9 @@ public:
 			matvar_t *matvar2;
 			matvar2 = Mat_VarCreate("diff", matio_class_map<float>(), matio_type_map<float>(), 4, dims, diff_cpu, 0);
 			if(matvar2 == NULL)
-				cout << "Error creating 'diff' variable";
+				LOG(FATAL) << "Error creating 'diff' variable";
 			if(Mat_VarWrite(matfp, matvar2, MAT_COMPRESSION_NONE) != 0)
-				cout << "Error saving array 'diff' into MAT file " << fname;
+				LOG(FATAL) << "Error saving array 'diff' into MAT file " << fname;
 			Mat_VarFree(matvar2);
 		}
 
@@ -663,7 +655,11 @@ public:
 		}
 		prefetch_data_->allocate_cpu_data();
 		prefetch_label_->allocate_cpu_data();
-		printf("prefetch_data_: (%d, %d, %d, %d)\n", prefetch_data_->N, prefetch_data_->C, prefetch_data_->H, prefetch_data_->W);
+		LOG(INFO) << "prefetch_data_ size: "
+				<< prefetch_data_->N << ", "
+				<< prefetch_data_->C << ", "
+				<< prefetch_data_->H << ", "
+				<< prefetch_data_->W;
 
 		mean_ = new Blob_t(1, datum_channels_, datum_height_, datum_width_);
 		mean_->allocate_cpu_data();
@@ -672,7 +668,11 @@ public:
 		for (int i = 0; i < mean_->count(); ++i) {
 			mean_->data_cpu[i] = (float)blob_proto.data(i);
 		}
-		 printf("mean_: (%d, %d, %d, %d)\n", mean_->N, mean_->C, mean_->H, mean_->W);
+		LOG(INFO) << "mean_ size: "
+				<< mean_->N << ", "
+				<< mean_->C << ", "
+				<< mean_->H << ", "
+				<< mean_->W;
 
 		CreatePrefetchThread();
 	}
@@ -2340,7 +2340,7 @@ public:
 		batch_labels->allocate_gpu_data();
 		batch_labels->allocate_cpu_data();
 
-		printf("conv1 setup.\n");
+		LOG(INFO) << "conv1 setup.\n";
 		conv1_top = new Blob_t();
 		conv1_params = new ConvolutionParameter_t();
 		conv1_params->filter_N = 3;
@@ -2361,14 +2361,14 @@ public:
 		conv1->Setup(batch_samples, conv1_top);
 
 
-		printf("relu1 setup.\n");
+		LOG(INFO) << "relu1 setup.\n";
 		relu1_top = new Blob_t();
 		relu1_params = new ActivationParameter_t();
 		relu1_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu1 = new ActivationLayer_t(relu1_params);
 		relu1->Setup(conv1_top, relu1_top);
 
-		printf("mp1 setup.\n");
+		LOG(INFO) << "mp1 setup.\n";
 		mp1_top = new Blob_t();
 		mp1_params = new PoolingParameter_t();
 		mp1_params->cudnn_pooling_mode = CUDNN_POOLING_MAX;
@@ -2381,7 +2381,7 @@ public:
 		mp1 = new PoolingLayer_t(mp1_params);
 		mp1->Setup(relu1_top, mp1_top);
 
-		printf("conv2 setup.\n");
+		LOG(INFO) << "conv2 setup.\n";
 		conv2_top = new Blob_t();
 		conv2_params = new ConvolutionParameter_t();
 		conv2_params->filter_N = 32;
@@ -2402,14 +2402,14 @@ public:
 		conv2->Setup(mp1_top, conv2_top);
 
 
-		printf("relu2 setup.\n");
+		LOG(INFO) << "relu2 setup.\n";
 		relu2_top = new Blob_t();
 		relu2_params = new ActivationParameter_t();
 		relu2_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu2 = new ActivationLayer_t(relu2_params);
 		relu2->Setup(conv2_top, relu2_top);
 
-		printf("mp2 setup.\n");
+		LOG(INFO) << "mp2 setup.\n";
 		mp2_top = new Blob_t();
 		mp2_params = new PoolingParameter_t();
 		mp2_params->cudnn_pooling_mode = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;
@@ -2422,7 +2422,7 @@ public:
 		mp2 = new PoolingLayer_t(mp2_params);
 		mp2->Setup(relu2_top, mp2_top);
 
-		printf("conv3 setup.\n");
+		LOG(INFO) << "conv3 setup.\n";
 		conv3_top = new Blob_t();
 		conv3_params = new ConvolutionParameter_t();
 		conv3_params->filter_N = 32;
@@ -2443,14 +2443,14 @@ public:
 		conv3->Setup(mp2_top, conv3_top);
 
 
-		printf("relu3 setup.\n");
+		LOG(INFO) << "relu3 setup.\n";
 		relu3_top = new Blob_t();
 		relu3_params = new ActivationParameter_t();
 		relu3_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu3 = new ActivationLayer_t(relu3_params);
 		relu3->Setup(conv3_top, relu3_top);
 
-		printf("mp3 setup.\n");
+		LOG(INFO) << "mp3 setup.\n";
 		mp3_top = new Blob_t();
 		mp3_params = new PoolingParameter_t();
 		mp3_params->cudnn_pooling_mode = CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING;
@@ -2463,7 +2463,7 @@ public:
 		mp3 = new PoolingLayer_t(mp3_params);
 		mp3->Setup(relu3_top, mp3_top);
 
-		printf("ip1 setup.\n");
+		LOG(INFO) << "ip1 setup.\n";
 		ip1_top = new Blob_t();
 		ip1_params = new FullyConnectedParameter_t();
 		ip1_params->hidden_size = 10;
@@ -2487,7 +2487,7 @@ public:
 		//		mlr1 = new MultinomialLogisticLossLayer_t(mlr1_params);
 		//		mlr1->Setup(sm1_top, mlr1_top);
 
-		printf("sml1 setup.\n");
+		LOG(INFO) << "sml1 setup.\n";
 		sml1_top = new Blob_t();
 		sml1_params = new SoftmaxWithLossParameter_t();
 		sml1_params->cudnn_softmax_algo = CUDNN_SOFTMAX_ACCURATE;
@@ -2506,14 +2506,14 @@ public:
 		//		argmax1 = new ArgMaxLayer_t(argmax1_params);
 		//		argmax1->Setup(sml1_top, argmax1_top);
 
-		printf("accuracy1 setup.\n");
+		LOG(INFO) << "accuracy1 setup.\n";
 		accuracy1_top = new Blob_t();
 		accuracy1_params = new AccuracyParameter_t();
 		accuracy1_params->top_k = 1;
 		accuracy1 = new AccuracyLayer_t(accuracy1_params);
 		accuracy1->Setup(ip1_top, accuracy1_top);
 
-		printf("initialize old net params.\n");
+		LOG(INFO) << "initialize old net params.\n";
 		conv1_filtersBlob_old = new Blob_t(conv1->filtersBlob->N, conv1->filtersBlob->C, conv1->filtersBlob->H, conv1->filtersBlob->W);
 		conv1_biasBlob_old = new Blob_t(conv1->biasBlob->N, conv1->biasBlob->C, conv1->biasBlob->H, conv1->biasBlob->W);
 		conv1_filtersBlob_old->allocate_gpu_data();
@@ -2542,7 +2542,7 @@ public:
 		gpu_fill(NULL, ip1_filtersBlob_old->data_gpu, ip1_filtersBlob_old->count(), 0.0f, 0.0f);
 		gpu_fill(NULL, ip1_biasBlob_old->data_gpu, ip1_biasBlob_old->count(), 0.0f, 0.0f);
 
-		printf("build net (done).\n");
+		LOG(INFO) << "build net (done).\n";
 	}
 
 	void Forward(float *loss, float *accuracy) {
@@ -3098,7 +3098,7 @@ public:
 		batch_labels->allocate_gpu_data();
 		batch_labels->allocate_cpu_data();
 
-		printf("conv1 setup.\n");
+		LOG(INFO) << "conv1 setup.\n";
 		conv1_top = new Blob_t();
 		conv1_params = new ConvolutionParameter_t();
 		conv1_params->filter_N = 3;
@@ -3117,18 +3117,26 @@ public:
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->biasBlob->data_gpu, conv1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(conv1->biasBlob->count(), 0, conv1->biasBlob->data_gpu);
 		conv1->Setup(batch_samples, conv1_top);
-		printf("conv1 top: (%d, %d, %d, %d)\n", conv1_top->N, conv1_top->C, conv1_top->H, conv1_top->W);
+		LOG(INFO) << "conv1 top: "
+				<< conv1_top->N << ", "
+				<< conv1_top->C << ", "
+				<< conv1_top->H << ", "
+				<< conv1_top->W;
 
 
-		printf("relu1 setup.\n");
+		LOG(INFO) << "relu1 setup.\n";
 		relu1_top = new Blob_t();
 		relu1_params = new ActivationParameter_t();
 		relu1_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu1 = new ActivationLayer_t(relu1_params);
 		relu1->Setup(conv1_top, relu1_top);
-		printf("relu1 top: (%d, %d, %d, %d)\n", relu1_top->N, relu1_top->C, relu1_top->H, relu1_top->W);
+		LOG(INFO) << "relu1 top: "
+				<< relu1_top->N << ", "
+				<< relu1_top->C << ", "
+				<< relu1_top->H << ", "
+				<< relu1_top->W;
 
-		printf("pool1 setup.\n");
+		LOG(INFO) << "pool1 setup.\n";
 		pool1_top = new Blob_t();
 		pool1_params = new PoolingParameter_t();
 		pool1_params->cudnn_pooling_mode = CUDNN_POOLING_MAX;
@@ -3140,9 +3148,13 @@ public:
 		pool1_params->stride_w = 2;
 		pool1 = new PoolingLayer_t(pool1_params);
 		pool1->Setup(relu1_top, pool1_top);
-		printf("pool1 top: (%d, %d, %d, %d)\n", pool1_top->N, pool1_top->C, pool1_top->H, pool1_top->W);
+		LOG(INFO) << "pool1 top: "
+				<< pool1_top->N << ", "
+				<< pool1_top->C << ", "
+				<< pool1_top->H << ", "
+				<< pool1_top->W;
 
-		printf("conv2g setup.\n");
+		LOG(INFO) << "conv2g setup.\n";
 		conv2g_top = new Blob_t();
 		conv2g_params = new ConvolutionWithGroupParameter_t();
 		conv2g_params->group = 2;
@@ -3163,18 +3175,26 @@ public:
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(conv2g->biasBlob->count(), 0, conv2g->biasBlob->data_gpu);
 		conv2g->Setup(pool1_top, conv2g_top);
-		printf("conv2g top: (%d, %d, %d, %d)\n", conv2g_top->N, conv2g_top->C, conv2g_top->H, conv2g_top->W);
+		LOG(INFO) << "conv2g top: "
+				<< conv2g_top->N << ", "
+				<< conv2g_top->C << ", "
+				<< conv2g_top->H << ", "
+				<< conv2g_top->W;
 
 
-		printf("relu2 setup.\n");
+		LOG(INFO) << "relu2 setup.\n";
 		relu2_top = new Blob_t();
 		relu2_params = new ActivationParameter_t();
 		relu2_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu2 = new ActivationLayer_t(relu2_params);
 		relu2->Setup(conv2g_top, relu2_top);
-		printf("relu2 top: (%d, %d, %d, %d)\n", relu2_top->N, relu2_top->C, relu2_top->H, relu2_top->W);
+		LOG(INFO) << "relu2 top: "
+				<< relu2_top->N << ", "
+				<< relu2_top->C << ", "
+				<< relu2_top->H << ", "
+				<< relu2_top->W;
 
-		printf("pool2 setup.\n");
+		LOG(INFO) << "pool2 setup.\n";
 		pool2_top = new Blob_t();
 		pool2_params = new PoolingParameter_t();
 		pool2_params->cudnn_pooling_mode = CUDNN_POOLING_MAX;
@@ -3186,9 +3206,13 @@ public:
 		pool2_params->stride_w = 2;
 		pool2 = new PoolingLayer_t(pool2_params);
 		pool2->Setup(relu2_top, pool2_top);
-		printf("pool2 top: (%d, %d, %d, %d)\n", pool2_top->N, pool2_top->C, pool2_top->H, pool2_top->W);
+		LOG(INFO) << "pool2 top: "
+				<< pool2_top->N << ", "
+				<< pool2_top->C << ", "
+				<< pool2_top->H << ", "
+				<< pool2_top->W;
 
-		printf("conv3 setup.\n");
+		LOG(INFO) << "conv3 setup.\n";
 		conv3_top = new Blob_t();
 		conv3_params = new ConvolutionParameter_t();
 		conv3_params->filter_N = 256;
@@ -3207,18 +3231,26 @@ public:
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv3->biasBlob->data_gpu, conv3->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(conv3->biasBlob->count(), 0, conv3->biasBlob->data_gpu);
 		conv3->Setup(pool2_top, conv3_top);
-		printf("conv3 top: (%d, %d, %d, %d)\n", conv3_top->N, conv3_top->C, conv3_top->H, conv3_top->W);
+		LOG(INFO) << "conv3 top: "
+				<< conv3_top->N << ", "
+				<< conv3_top->C << ", "
+				<< conv3_top->H << ", "
+				<< conv3_top->W;
 
 
-		printf("relu3 setup.\n");
+		LOG(INFO) << "relu3 setup.\n";
 		relu3_top = new Blob_t();
 		relu3_params = new ActivationParameter_t();
 		relu3_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu3 = new ActivationLayer_t(relu3_params);
 		relu3->Setup(conv3_top, relu3_top);
-		printf("relu3 top: (%d, %d, %d, %d)\n", relu3_top->N, relu3_top->C, relu3_top->H, relu3_top->W);
+		LOG(INFO) << "relu3 top: "
+				<< relu3_top->N << ", "
+				<< relu3_top->C << ", "
+				<< relu3_top->H << ", "
+				<< relu3_top->W;
 
-		printf("conv4g setup.\n");
+		LOG(INFO) << "conv4g setup.\n";
 		conv4g_top = new Blob_t();
 		conv4g_params = new ConvolutionWithGroupParameter_t();
 		conv4g_params->group = 2;
@@ -3239,17 +3271,25 @@ public:
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(conv4g->biasBlob->count(), 0, conv4g->biasBlob->data_gpu);
 		conv4g->Setup(relu3_top, conv4g_top);
-		printf("conv4g top: (%d, %d, %d, %d)\n", conv4g_top->N, conv4g_top->C, conv4g_top->H, conv4g_top->W);
+		LOG(INFO) << "conv4g top: "
+				<< conv4g_top->N << ", "
+				<< conv4g_top->C << ", "
+				<< conv4g_top->H << ", "
+				<< conv4g_top->W;
 
-		printf("relu4 setup.\n");
+		LOG(INFO) << "relu4 setup.\n";
 		relu4_top = new Blob_t();
 		relu4_params = new ActivationParameter_t();
 		relu4_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu4 = new ActivationLayer_t(relu4_params);
 		relu4->Setup(conv4g_top, relu4_top);
-		printf("relu4 top: (%d, %d, %d, %d)\n", relu4_top->N, relu4_top->C, relu4_top->H, relu4_top->W);
+		LOG(INFO) << "relu4 top: "
+				<< relu4_top->N << ", "
+				<< relu4_top->C << ", "
+				<< relu4_top->H << ", "
+				<< relu4_top->W;
 
-		printf("conv5g setup.\n");
+		LOG(INFO) << ("conv5g setup.\n");
 		conv5g_top = new Blob_t();
 		conv5g_params = new ConvolutionWithGroupParameter_t();
 		conv5g_params->group = 2;
@@ -3270,17 +3310,25 @@ public:
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(conv5g->biasBlob->count(), float(0.1f), conv5g->biasBlob->data_gpu);
 		conv5g->Setup(relu4_top, conv5g_top);
-		printf("conv5g top: (%d, %d, %d, %d)\n", conv5g_top->N, conv5g_top->C, conv5g_top->H, conv5g_top->W);
+		LOG(INFO) << "conv5g top: "
+				<< conv5g_top->N << ", "
+				<< conv5g_top->C << ", "
+				<< conv5g_top->H << ", "
+				<< conv5g_top->W;
 
-		printf("relu5 setup.\n");
+		LOG(INFO) << ("relu5 setup.\n");
 		relu5_top = new Blob_t();
 		relu5_params = new ActivationParameter_t();
 		relu5_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu5 = new ActivationLayer_t(relu5_params);
 		relu5->Setup(conv5g_top, relu5_top);
-		printf("relu5 top: (%d, %d, %d, %d)\n", relu5_top->N, relu5_top->C, relu5_top->H, relu5_top->W);
+		LOG(INFO) << "relu5 top: "
+				<< relu5_top->N << ", "
+				<< relu5_top->C << ", "
+				<< relu5_top->H << ", "
+				<< relu5_top->W;
 
-		printf("pool5 setup.\n");
+		LOG(INFO) << ("pool5 setup.\n");
 		pool5_top = new Blob_t();
 		pool5_params = new PoolingParameter_t();
 		pool5_params->cudnn_pooling_mode = CUDNN_POOLING_MAX;
@@ -3292,9 +3340,13 @@ public:
 		pool5_params->stride_w = 2;
 		pool5 = new PoolingLayer_t(pool5_params);
 		pool5->Setup(relu5_top, pool5_top);
-		printf("pool5 top: (%d, %d, %d, %d)\n", pool5_top->N, pool5_top->C, pool5_top->H, pool5_top->W);
+		LOG(INFO) << "pool5 top: "
+				<< pool5_top->N << ", "
+				<< pool5_top->C << ", "
+				<< pool5_top->H << ", "
+				<< pool5_top->W;
 
-		printf("fc6 setup.\n");
+		LOG(INFO) << ("fc6 setup.\n");
 		fc6_top = new Blob_t();
 		fc6_params = new FullyConnectedParameter_t();
 		fc6_params->hidden_size = 4096;
@@ -3303,17 +3355,25 @@ public:
 		CURAND_CHECK( curandGenerateNormal(curand_generator, fc6->filtersBlob->data_gpu, fc6->filtersBlob->count(), (float)0.0f, (float)0.005f) );
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(fc6->biasBlob->count(), float(0.1f), fc6->biasBlob->data_gpu);
-		printf("fc6 top: (%d, %d, %d, %d)\n", fc6_top->N, fc6_top->C, fc6_top->H, fc6_top->W);
+		LOG(INFO) << "fc6 top: "
+				<< fc6_top->N << ", "
+				<< fc6_top->C << ", "
+				<< fc6_top->H << ", "
+				<< fc6_top->W;
 
-		printf("relu6 setup.\n");
+		LOG(INFO) << ("relu6 setup.\n");
 		relu6_top = new Blob_t();
 		relu6_params = new ActivationParameter_t();
 		relu6_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu6 = new ActivationLayer_t(relu6_params);
 		relu6->Setup(fc6_top, relu6_top);
-		printf("relu6 top: (%d, %d, %d, %d)\n", relu6_top->N, relu6_top->C, relu6_top->H, relu6_top->W);
+		LOG(INFO) << "relu6 top: "
+				<< relu6_top->N << ", "
+				<< relu6_top->C << ", "
+				<< relu6_top->H << ", "
+				<< relu6_top->W;
 
-		printf("fc7 setup.\n");
+		LOG(INFO) << ("fc7 setup.\n");
 		fc7_top = new Blob_t();
 		fc7_params = new FullyConnectedParameter_t();
 		fc7_params->hidden_size = 4096;
@@ -3322,17 +3382,25 @@ public:
 		CURAND_CHECK( curandGenerateNormal(curand_generator, fc7->filtersBlob->data_gpu, fc7->filtersBlob->count(), (float)0.0f, (float)0.005f) );
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(fc7->biasBlob->count(), float(0.1f), fc7->biasBlob->data_gpu);
-		printf("fc7 top: (%d, %d, %d, %d)\n", fc7_top->N, fc7_top->C, fc7_top->H, fc7_top->W);
+		LOG(INFO) << "fc7 top: "
+				<< fc7_top->N << ", "
+				<< fc7_top->C << ", "
+				<< fc7_top->H << ", "
+				<< fc7_top->W;
 
-		printf("relu7 setup.\n");
+		LOG(INFO) << ("relu7 setup.\n");
 		relu7_top = new Blob_t();
 		relu7_params = new ActivationParameter_t();
 		relu7_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 		relu7 = new ActivationLayer_t(relu7_params);
 		relu7->Setup(fc7_top, relu7_top);
-		printf("relu7 top: (%d, %d, %d, %d)\n", relu7_top->N, relu7_top->C, relu7_top->H, relu7_top->W);
+		LOG(INFO) << "relu7 top: "
+				<< relu7_top->N << ", "
+				<< relu7_top->C << ", "
+				<< relu7_top->H << ", "
+				<< relu7_top->W;
 
-		printf("fc8 setup.\n");
+		LOG(INFO) << ("fc8 setup.\n");
 		fc8_top = new Blob_t();
 		fc8_params = new FullyConnectedParameter_t();
 		fc8_params->hidden_size = 1000;
@@ -3341,7 +3409,11 @@ public:
 		CURAND_CHECK( curandGenerateNormal(curand_generator, fc8->filtersBlob->data_gpu, fc8->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 		gpu_set(fc8->biasBlob->count(), float(0.0f), fc8->biasBlob->data_gpu);
-		printf("fc8 top: (%d, %d, %d, %d)\n", fc8_top->N, fc8_top->C, fc8_top->H, fc8_top->W);
+		LOG(INFO) << "fc8 top: "
+				<< fc8_top->N << ", "
+				<< fc8_top->C << ", "
+				<< fc8_top->H << ", "
+				<< fc8_top->W;
 
 		//		printf("sm1 setup.\n");
 		//		sm1_top = new Blob_t();
@@ -3357,7 +3429,7 @@ public:
 		//		mlr1 = new MultinomialLogisticLossLayer_t(mlr1_params);
 		//		mlr1->Setup(sm1_top, mlr1_top);
 
-		printf("sml1 setup.\n");
+		LOG(INFO) << ("sml1 setup.\n");
 		sml1_top = new Blob_t();
 		sml1_params = new SoftmaxWithLossParameter_t();
 		sml1_params->cudnn_softmax_algo = CUDNN_SOFTMAX_ACCURATE;
@@ -3367,7 +3439,11 @@ public:
 		sml1_params->normalize = false;
 		sml1 = new SoftmaxWithLossLayer_t(sml1_params);
 		sml1->Setup(fc8_top, sml1_top);
-		printf("sml1 top: (%d, %d, %d, %d)\n", sml1_top->N, sml1_top->C, sml1_top->H, sml1_top->W);
+		LOG(INFO) << "sml1 top: "
+				<< sml1_top->N << ", "
+				<< sml1_top->C << ", "
+				<< sml1_top->H << ", "
+				<< sml1_top->W;
 
 		//		printf("argmax1 setup.\n");
 		//		argmax1_top = new Blob_t();
@@ -3377,15 +3453,19 @@ public:
 		//		argmax1 = new ArgMaxLayer_t(argmax1_params);
 		//		argmax1->Setup(sml1_top, argmax1_top);
 
-		printf("accuracy1 setup.\n");
+		LOG(INFO) << ("accuracy1 setup.\n");
 		accuracy1_top = new Blob_t();
 		accuracy1_params = new AccuracyParameter_t();
 		accuracy1_params->top_k = 1;
 		accuracy1 = new AccuracyLayer_t(accuracy1_params);
 		accuracy1->Setup(fc8_top, accuracy1_top);
-		printf("accuracy1 top: (%d, %d, %d, %d)\n", accuracy1_top->N, accuracy1_top->C, accuracy1_top->H, accuracy1_top->W);
+		LOG(INFO) << "accuracy1 top: "
+				<< accuracy1_top->N << ", "
+				<< accuracy1_top->C << ", "
+				<< accuracy1_top->H << ", "
+				<< accuracy1_top->W;
 
-		printf("initialize old net params.\n");
+		LOG(INFO) << ("initialize old net params.\n");
 		conv1_filtersBlob_old = new Blob_t(conv1->filtersBlob->N, conv1->filtersBlob->C, conv1->filtersBlob->H, conv1->filtersBlob->W);
 		conv1_biasBlob_old = new Blob_t(conv1->biasBlob->N, conv1->biasBlob->C, conv1->biasBlob->H, conv1->biasBlob->W);
 		conv1_filtersBlob_old->allocate_gpu_data();
@@ -3442,7 +3522,7 @@ public:
 		gpu_fill(NULL, fc8_filtersBlob_old->data_gpu, fc8_filtersBlob_old->count(), 0.0f, 0.0f);
 		gpu_fill(NULL, fc8_biasBlob_old->data_gpu, fc8_biasBlob_old->count(), 0.0f, 0.0f);
 
-		printf("build net (done).\n");
+		LOG(INFO) << ("build net (done).\n");
 	}
 
 	void Forward(float *loss, float *accuracy) {
@@ -3698,7 +3778,7 @@ public:
 	Blob_t *batch_samples;
 	Blob_t *batch_labels;
 	Network_t *net;
-	int current_gpu_id;
+	int main_gpu_id;
 	int net_gpu_id;
 	float lr_rate;
 	float momentum;
@@ -3778,9 +3858,9 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 	string gpu_ids_str = string(argv[11]);
 
 
-	int current_gpu_id;
-	cudaGetDevice(&current_gpu_id);
-	printf("current gpu id: %d\n", current_gpu_id);
+	int main_gpu_id;
+	cudaGetDevice(&main_gpu_id);
+	printf("current gpu id: %d\n", main_gpu_id);
 
 	vector<int> gpus;
 	vector<string> strings;
@@ -3798,10 +3878,10 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
 	} else {
 		gpus.clear();
-		gpus.push_back(current_gpu_id);
+		gpus.push_back(main_gpu_id);
 	}
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 
 	vector<Network_t *> trn_nets(gpus.size());
 	for(int i = 0; i < gpus.size(); i++) {
@@ -3818,7 +3898,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 	}
 	printf("initialize nets for each gpu (done) ...\n");
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 
 	pthread_t *threads;
 	pthread_attr_t pta;
@@ -3847,7 +3927,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 		thread_data[i].lr_rate = lr_rate;
 		thread_data[i].momentum = momentum;
 		thread_data[i].weight_decay = weight_decay;
-		thread_data[i].current_gpu_id = current_gpu_id;
+		thread_data[i].main_gpu_id = main_gpu_id;
 		thread_data[i].net = trn_nets[i];
 		thread_data[i].net_gpu_id = gpus[i];
 		thread_data[i].batch_samples = batch_samples;
@@ -3865,7 +3945,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 		delete trn_nets[i]; trn_nets[i] = NULL;
 	}
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 	delete batch_samples;
 	delete batch_labels;
 
@@ -3896,9 +3976,9 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	string gpu_ids_str = string(argv[11]);
 
 
-	int current_gpu_id;
-	cudaGetDevice(&current_gpu_id);
-	printf("current gpu id: %d\n", current_gpu_id);
+	int main_gpu_id;
+	cudaGetDevice(&main_gpu_id);
+	printf("current gpu id: %d\n", main_gpu_id);
 
 	vector<int> gpus;
 	vector<string> strings;
@@ -3916,10 +3996,10 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
 	} else {
 		gpus.clear();
-		gpus.push_back(current_gpu_id);
+		gpus.push_back(main_gpu_id);
 	}
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 
 	vector<Network_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
@@ -3947,7 +4027,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	}
 	printf("initialize nets for each gpu (done) ...\n");
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 
 	Blob_t *trn_batch_samples = new Blob_t();
 	Blob_t *trn_batch_labels = new Blob_t();
@@ -3971,10 +4051,10 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
-	Network_t *trn_net = new Network_t("trn_net", current_gpu_id);
+	Network_t *trn_net = new Network_t("trn_net", main_gpu_id);
 	trn_net->BuildNet(trn_batch_size, "");
 	trn_net->batch_labels->allocate_cpu_data();
-	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
+	Network_t *tst_net = new Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 	tst_net->batch_labels->allocate_cpu_data();
 
@@ -3987,7 +4067,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 		thread_data[i].lr_rate = lr_rate;
 		thread_data[i].momentum = momentum;
 		thread_data[i].weight_decay = weight_decay;
-		thread_data[i].current_gpu_id = current_gpu_id;
+		thread_data[i].main_gpu_id = main_gpu_id;
 		thread_data[i].net = trn_nets[i];
 		thread_data[i].net_gpu_id = gpus[i];
 		thread_data[i].batch_samples = batch_samples_slices[i];
@@ -4024,7 +4104,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 			}
 
 			cudaDeviceSynchronize();
-			cudaSetDevice(current_gpu_id);
+			cudaSetDevice(main_gpu_id);
 			// copy update values from each sub nets to the main trn_net
 			for(int i = 0; i < gpus.size(); i++) {
 				trn_net->AddNetParamsDiffFrom(trn_nets[i]);
@@ -4038,7 +4118,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 		delete trn_nets[i]; trn_nets[i] = NULL;
 	}
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 	delete trn_batch_samples;
 	delete trn_batch_labels;
 	delete tst_batch_samples;
@@ -4134,8 +4214,8 @@ int main_single_gpu_ok(int argc, char **argv) {
 	int max_epoch_num = atoi(argv[10]);
 	string gpu_ids_str = string(argv[11]);
 
-	int current_gpu_id = 0;
-	cudaSetDevice(current_gpu_id);
+	int main_gpu_id = 0;
+	cudaSetDevice(main_gpu_id);
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
 	trn_data_param->backend = "lmdb";
 	trn_data_param->batch_size = trn_batch_size;
@@ -4154,10 +4234,10 @@ int main_single_gpu_ok(int argc, char **argv) {
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
-	Network_t *trn_net = new Network_t("trn_net", current_gpu_id);
+	Network_t *trn_net = new Network_t("trn_net", main_gpu_id);
 	trn_net->BuildNet(trn_batch_size, "");
 
-	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
+	Network_t *tst_net = new Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 
 	int num_tst_iters = floor(10000 / tst_batch_size);
@@ -4214,25 +4294,25 @@ int main_single_gpu_ok(int argc, char **argv) {
 }
 
 int main(int argc, char *argv[]) {
-	if(argc != 12) {
-		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+	if(argc != 13) {
+		LOG(FATAL) << ("Usage: <filename> main_gpu_id trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
 	}
-	string trn_db_filename = string(argv[1]);
-	string tst_db_filename = string(argv[2]);
-	string mean_file = string(argv[3]);
-	float lr_rate = atof(argv[4]);
-	int lr_stepsize = atoi(argv[5]);
-	float momentum = atof(argv[6]);
-	float weight_decay = atof(argv[7]);
-	int trn_batch_size = atoi(argv[8]);
-	int tst_batch_size = atoi(argv[9]);
-	int max_epoch_num = atoi(argv[10]);
-	string gpu_ids_str = string(argv[11]);
+	int main_gpu_id = atoi(argv[1]);
+	string trn_db_filename = string(argv[2]);
+	string tst_db_filename = string(argv[3]);
+	string mean_file = string(argv[4]);
+	float lr_rate = atof(argv[5]);
+	int lr_stepsize = atoi(argv[6]);
+	float momentum = atof(argv[7]);
+	float weight_decay = atof(argv[8]);
+	int trn_batch_size = atoi(argv[9]);
+	int tst_batch_size = atoi(argv[10]);
+	int max_epoch_num = atoi(argv[11]);
+	string gpu_ids_str = string(argv[12]);
 
-	int current_gpu_id;
-	cudaGetDevice(&current_gpu_id);
-	printf("current gpu id: %d\n", current_gpu_id);
+	cudaSetDevice(main_gpu_id);
+	LOG(INFO) << "current gpu id: " << main_gpu_id;
 
 	vector<int> gpus;
 	vector<string> strings;
@@ -4242,25 +4322,25 @@ int main(int argc, char *argv[]) {
 	}
 	int num_gpus = 0;
 	cudaGetDeviceCount(&num_gpus);
-	printf("number of manually-set gpus: %ld, total %d gpus.\n", gpus.size(), num_gpus);
+	LOG(INFO) << "number of manually-set gpus: " << gpus.size() <<
+			"total " << num_gpus << " gpus.";
 
 	if(num_gpus >= gpus.size()) {
-		printf("enable P2P: ");
+		LOG(INFO) << ("enable P2P: ");
 		EnableP2P(gpus);
-		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
 	} else {
 		gpus.clear();
-		gpus.push_back(current_gpu_id);
+		gpus.push_back(main_gpu_id);
 	}
 
 	if(trn_batch_size % gpus.size() != 0) {
-		printf("trn_batch_size: %d\n", trn_batch_size);
-		printf("number of given gpus: %ld \n", gpus.size());
-		printf("trn_batch_size must be times of the number of given gpus.\n");
+		LOG(FATAL) << "trn_batch_size: " << trn_batch_size
+				<< ", number of given gpus: " << gpus.size()
+				<< ", trn_batch_size must be times of the number of given gpus.";
 		return -1;
 	}
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
 	trn_data_param->backend = "lmdb";
 	trn_data_param->batch_size = trn_batch_size;
@@ -4279,8 +4359,8 @@ int main(int argc, char *argv[]) {
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
-	cudaSetDevice(current_gpu_id);
-	Network_t *tst_net = new Network_t("tst_net", current_gpu_id);
+	cudaSetDevice(main_gpu_id);
+	Network_t *tst_net = new Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 	tst_net->SaveNetParams(0);
 
@@ -4294,11 +4374,11 @@ int main(int argc, char *argv[]) {
 		batch_labels_slices[i] = NULL;
 		batch_sizes[i] = 0;
 	}
-	printf("initialize nets for each gpu ...\n");
+	LOG(INFO) << ("initialize nets for each gpu ...\n");
 	for(int i = 0; i < gpus.size(); i++)
 	{
-		printf("=========== gpu [%d] ==============\n", gpus[i]);
-		cudaSetDevice(current_gpu_id);
+		LOG(INFO) << "gpu[" <<  gpus[i] << "]:\n";
+		cudaSetDevice(main_gpu_id);
 		batch_sizes[i] = trn_batch_size / gpus.size();
 		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
 		trn_nets[i]->BuildNet(batch_sizes[i], "");
@@ -4306,7 +4386,7 @@ int main(int argc, char *argv[]) {
 		batch_samples_slices[i] = trn_nets[i]->batch_samples;
 		batch_labels_slices[i] = trn_nets[i]->batch_labels;
 	}
-	printf("initialize nets for each gpu (done) ...\n");
+	LOG(INFO) << ("initialize nets for each gpu (done) ...\n");
 
 	pthread_t *threads;
 	pthread_attr_t pta;
@@ -4320,7 +4400,7 @@ int main(int argc, char *argv[]) {
 		thread_data[i].lr_rate = lr_rate;
 		thread_data[i].momentum = momentum;
 		thread_data[i].weight_decay = weight_decay;
-		thread_data[i].current_gpu_id = current_gpu_id;
+		thread_data[i].main_gpu_id = main_gpu_id;
 		thread_data[i].net = trn_nets[i];
 		thread_data[i].net_gpu_id = gpus[i];
 		thread_data[i].batch_samples = batch_samples_slices[i];
@@ -4342,8 +4422,7 @@ int main(int argc, char *argv[]) {
 		}
 		tst_loss /= num_tst_iters;
 		tst_acc  /= num_tst_iters;
-		printf("epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n",
-				epoch, tst_loss, tst_acc);
+		LOG(INFO) << "epoch[" << epoch << "]: tst_loss=" << tst_loss << ", tst_acc=" << tst_acc << "\n";
 
 		// training net
 		for(int iter = 0; iter < num_trn_iters; iter++) {
@@ -4364,21 +4443,21 @@ int main(int argc, char *argv[]) {
 
 			cudaDeviceSynchronize();
 
-			cudaSetDevice(current_gpu_id);
+			cudaSetDevice(main_gpu_id);
 			tst_net->ClearNetParamsDiff();
 			cudaDeviceSynchronize();
 
-			cudaSetDevice(current_gpu_id);
+			cudaSetDevice(main_gpu_id);
 			for(int i = 0; i < gpus.size(); i++) {
 				tst_net->AddNetParamsDiffFrom(trn_nets[i]);
 			}
 			cudaDeviceSynchronize();
 
-			cudaSetDevice(current_gpu_id);
+			cudaSetDevice(main_gpu_id);
 			tst_net->UpdateNet(-1.0f / (gpus.size()));
 			cudaDeviceSynchronize();
 
-			cudaSetDevice(current_gpu_id);
+			cudaSetDevice(main_gpu_id);
 			// update learning rate
 			if((epoch != 0) && (epoch % lr_stepsize == 0))
 			{
@@ -4393,7 +4472,7 @@ int main(int argc, char *argv[]) {
 		delete trn_nets[i]; trn_nets[i] = NULL;
 	}
 
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 	batch_samples_slices.clear();
 	batch_labels_slices.clear();
 
@@ -4405,9 +4484,8 @@ int main(int argc, char *argv[]) {
 	delete tst_data_layer; tst_data_layer = NULL;
 
 	if(num_gpus >= gpus.size()) {
-		printf("disable P2P: ");
+		LOG(INFO) << ("disable P2P: ");
 		DisableP2P(gpus);
-		printf("%s \n", cudaGetErrorString(cudaGetLastError()));
 	}
 
 	pthread_barrier_destroy(&barr);
@@ -4552,24 +4630,24 @@ int main_test_conv_wigh_group_seems_ok(int argc, char **argv) {
 
 // test alex net
 int main_alexnet_to_be_tested(int argc, char **argv) {
-	if(argc != 12) {
-		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+	if(argc != 13) {
+		LOG(FATAL) << "Usage: <filename> main_gpu_id trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n";
 		return -1;
 	}
-	string trn_db_filename = string(argv[1]);
-	string tst_db_filename = string(argv[2]);
-	string mean_file = string(argv[3]);
-	float lr_rate = atof(argv[4]);
-	int lr_stepsize = atoi(argv[5]);
-	float momentum = atof(argv[6]);
-	float weight_decay = atof(argv[7]);
-	int trn_batch_size = atoi(argv[8]);
-	int tst_batch_size = atoi(argv[9]);
-	int max_epoch_num = atoi(argv[10]);
-	string gpu_ids_str = string(argv[11]);
+	int main_gpu_id = atoi(argv[1]);
+	string trn_db_filename = string(argv[2]);
+	string tst_db_filename = string(argv[3]);
+	string mean_file = string(argv[4]);
+	float lr_rate = atof(argv[5]);
+	int lr_stepsize = atoi(argv[6]);
+	float momentum = atof(argv[7]);
+	float weight_decay = atof(argv[8]);
+	int trn_batch_size = atoi(argv[9]);
+	int tst_batch_size = atoi(argv[10]);
+	int max_epoch_num = atoi(argv[11]);
+	string gpu_ids_str = string(argv[12]);
 
-	int current_gpu_id = 0;
-	cudaSetDevice(current_gpu_id);
+	cudaSetDevice(main_gpu_id);
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
 	trn_data_param->backend = "lmdb";
 	trn_data_param->batch_size = trn_batch_size;
@@ -4588,10 +4666,10 @@ int main_alexnet_to_be_tested(int argc, char **argv) {
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
-	AlexNetwork_t *trn_net = new AlexNetwork_t("alexnet_trn", current_gpu_id);
+	AlexNetwork_t *trn_net = new AlexNetwork_t("alexnet_trn", main_gpu_id);
 	trn_net->BuildNet(trn_batch_size, "");
 
-	AlexNetwork_t *tst_net = new AlexNetwork_t("alexnet_tst", current_gpu_id);
+	AlexNetwork_t *tst_net = new AlexNetwork_t("alexnet_tst", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 
 	int num_tst_iters = 80000;//floor(10000 / tst_batch_size);
@@ -4610,7 +4688,7 @@ int main_alexnet_to_be_tested(int argc, char **argv) {
 		}
 		tst_loss /= num_tst_iters;
 		tst_acc  /= num_tst_iters;
-		printf("epoch[%d]: tst_loss=%.6f, tst_acc=%.6f, ", epoch, tst_loss, tst_acc);
+		LOG(INFO) << "epoch[" << epoch << "]: tst_loss=" << tst_loss << ", tst_acc= " << tst_acc;
 
 		// training net
 		float trn_loss = 0.0f, trn_loss_batch = 0.0f;
@@ -4632,7 +4710,7 @@ int main_alexnet_to_be_tested(int argc, char **argv) {
 			lr_rate /= 10;
 			trn_net->SaveNetParams(epoch);
 		}
-		printf("trn_loss=%.6f, trn_acc=%.6f\n", trn_loss, trn_acc);
+		LOG(INFO) << "epoch[" << epoch << "]: trn_loss=" << trn_loss << ", trn_acc= " << trn_acc;
 	}
 
 	delete trn_net;
