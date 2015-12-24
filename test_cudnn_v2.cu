@@ -4293,7 +4293,7 @@ int main_single_gpu_ok(int argc, char **argv) {
 	return 0;
 }
 
-int main(int argc, char *argv[]) {
+int main_multi_gpu_ok(int argc, char *argv[]) {
 	if(argc != 13) {
 		LOG(FATAL) << ("Usage: <filename> main_gpu_id trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
@@ -4629,7 +4629,7 @@ int main_test_conv_wigh_group_seems_ok(int argc, char **argv) {
 
 
 // test alex net
-int main_alexnet_to_be_tested(int argc, char **argv) {
+int main(int argc, char **argv) {
 	if(argc != 13) {
 		LOG(FATAL) << "Usage: <filename> main_gpu_id trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n";
 		return -1;
@@ -4708,7 +4708,7 @@ int main_alexnet_to_be_tested(int argc, char **argv) {
 		if((epoch != 0) && (epoch % lr_stepsize == 0))
 		{
 			lr_rate /= 10;
-			trn_net->SaveNetParams(epoch);
+			// trn_net->SaveNetParams(epoch);
 		}
 		LOG(INFO) << "epoch[" << epoch << "]: trn_loss=" << trn_loss << ", trn_acc= " << trn_acc;
 	}
