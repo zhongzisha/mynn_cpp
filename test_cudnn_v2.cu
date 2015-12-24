@@ -4630,26 +4630,27 @@ int main_test_conv_wigh_group_seems_ok(int argc, char **argv) {
 
 // test alex net
 int main(int argc, char **argv) {
-	if(argc != 13) {
-		LOG(FATAL) << "Usage: <filename> main_gpu_id trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n";
+	if(argc != 14) {
+		LOG(FATAL) << "Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n";
 		return -1;
 	}
 	int main_gpu_id = atoi(argv[1]);
-	string trn_db_filename = string(argv[2]);
-	string tst_db_filename = string(argv[3]);
-	string mean_file = string(argv[4]);
-	float lr_rate = atof(argv[5]);
-	int lr_stepsize = atoi(argv[6]);
-	float momentum = atof(argv[7]);
-	float weight_decay = atof(argv[8]);
-	int trn_batch_size = atoi(argv[9]);
-	int tst_batch_size = atoi(argv[10]);
-	int max_epoch_num = atoi(argv[11]);
-	string gpu_ids_str = string(argv[12]);
+	string db_backend = string(argv[2]);
+	string trn_db_filename = string(argv[3]);
+	string tst_db_filename = string(argv[4]);
+	string mean_file = string(argv[5]);
+	float lr_rate = atof(argv[6]);
+	int lr_stepsize = atoi(argv[7]);
+	float momentum = atof(argv[8]);
+	float weight_decay = atof(argv[9]);
+	int trn_batch_size = atoi(argv[10]);
+	int tst_batch_size = atoi(argv[11]);
+	int max_epoch_num = atoi(argv[12]);
+	string gpu_ids_str = string(argv[13]);
 
 	cudaSetDevice(main_gpu_id);
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
-	trn_data_param->backend = "lmdb";
+	trn_data_param->backend = db_backend;
 	trn_data_param->batch_size = trn_batch_size;
 	trn_data_param->source = trn_db_filename;
 	trn_data_param->mean_file = mean_file;
@@ -4658,7 +4659,7 @@ int main(int argc, char **argv) {
 	trn_data_layer->Setup();
 
 	DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
-	tst_data_param->backend = "lmdb";
+	tst_data_param->backend = db_backend;
 	tst_data_param->batch_size = tst_batch_size;
 	tst_data_param->source = tst_db_filename;
 	tst_data_param->mean_file = mean_file;
