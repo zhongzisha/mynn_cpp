@@ -399,8 +399,8 @@ public:
 	{
 		data_to_cpu();
 
-		mat_t *matfp = Mat_Create(fname, 0);
-		//matfp = Mat_CreateVer(fname, 0, MAT_FT_MAT73);
+		// mat_t *matfp = Mat_Create(fname, 0);
+		mat_t *matfp = Mat_CreateVer(fname, 0, MAT_FT_MAT73);
 		size_t dims[4];
 		dims[0] = W;
 		dims[1] = H;
