@@ -15,17 +15,14 @@ all:
 	-I${CUDNN_ROOT}/ \
 	-I${CUDA_ROOT}/include \
 	-I/usr/include/mpi \
-	-I${GCC463_ROOT}/include \
+	-I${GCC_ROOT}/include \
 	myproto.pb.cc io.cpp db.cpp internal_thread.cpp test_cudnn_v2.cu \
-	-L${CUDA_ROOT}/lib64 -L${CUDA_ROOT}/lib -lcudart -lcurand -lcublas \
-	-L${GCC463_ROOT}/lib64 -L${GCC463_ROOT}/lib \
+	-L${CUDA_ROOT}/lib64 -L${CUDA_ROOT}/lib -lcudart -lcurand -lcublas -lcudnn \
+	-L${GCC_ROOT}/lib64 -L${GCC_ROOT}/lib \
 	-lprotobuf -lglog -lgflags -lopencv_core -lopencv_imgproc -lopencv_highgui \
-	-lboost_system -lboost_filesystem \
-	-lboost_thread \
 	-lleveldb -llmdb \
-	-lcudnn \
-	-lmatio \
-	-lhdf5 -lhdf5_hl \
+	-lmatio -lhdf5 -lhdf5_hl \
+	-lboost_thread -lboost_filesystem -lboost_system \
 	-o ${OUTDIR}/${EXE}
 	
 clean:
