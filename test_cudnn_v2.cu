@@ -4240,8 +4240,8 @@ int main_cifar10_single_gpu_ok(int argc, char **argv) {
 	Cifar10Network_t *tst_net = new Cifar10Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 
-	int num_tst_iters = floor(10000 / tst_batch_size);
-	int num_trn_iters = floor(50000 / trn_batch_size);
+	int num_tst_iters = ceil(10000 / tst_batch_size);
+	int num_trn_iters = ceil(50000 / trn_batch_size);
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 
 		// testing net
@@ -4408,8 +4408,8 @@ int main_cifar10_multi_gpu_ok(int argc, char **argv) {
 		thread_data[i].batch_labels = batch_labels_slices[i];
 	}
 
-	int num_tst_iters = floor(10000 / tst_batch_size);
-	int num_trn_iters = floor(50000 / trn_batch_size);
+	int num_tst_iters = ceil(10000 / tst_batch_size);
+	int num_trn_iters = ceil(50000 / trn_batch_size);
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 
 		// testing net
@@ -4674,8 +4674,8 @@ int main_alex_net_single_gpu_to_be_tested(int argc, char **argv) {
 	AlexNetwork_t *tst_net = new AlexNetwork_t("alexnet_tst", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 
-	int num_tst_iters = 80000;//floor(10000 / tst_batch_size);
-	int num_trn_iters = 12500;//floor(50000 / trn_batch_size);
+	int num_tst_iters = ceil(50000 / tst_batch_size);
+	int num_trn_iters = ceil(1281167 / trn_batch_size);
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 
 		// testing net
