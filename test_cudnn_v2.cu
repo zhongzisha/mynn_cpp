@@ -2095,7 +2095,7 @@ public:
 	}
 };
 
-class Network_t
+class Cifar10Network_t
 {
 public:
 	string net_name;
@@ -2180,7 +2180,7 @@ public:
 	Blob_t *ip1_biasBlob_old;
 
 
-	Network_t(string net_name_, int gpu_id_ = 0) {
+	Cifar10Network_t(string net_name_, int gpu_id_ = 0) {
 		net_name = net_name_;
 		gpu_id = gpu_id_;
 		curand_stream = NULL;
@@ -2250,7 +2250,7 @@ public:
 
 	}
 
-	~Network_t() {
+	~Cifar10Network_t() {
 		DestroyNet();
 	}
 
@@ -2709,7 +2709,7 @@ public:
 
 	}
 
-	void CopyNetParamsFrom(const Network_t *other) {
+	void CopyNetParamsFrom(const Cifar10Network_t *other) {
 		CopyBlobData_gpu(other->conv3->filtersBlob, other->gpu_id, conv3->filtersBlob, gpu_id);
 		CopyBlobData_gpu(other->conv3->biasBlob, 	other->gpu_id, conv3->biasBlob,	   gpu_id);
 		CopyBlobData_gpu(other->conv2->filtersBlob, other->gpu_id, conv2->filtersBlob, gpu_id);
@@ -2720,7 +2720,7 @@ public:
 		CopyBlobData_gpu(other->ip1->biasBlob, 		other->gpu_id, ip1->biasBlob, 	   gpu_id);
 	}
 
-	void AddNetParamsDiffFrom(const Network_t *other) {
+	void AddNetParamsDiffFrom(const Cifar10Network_t *other) {
 		AddBlobDiff_gpu(other->conv3->filtersBlob, other->gpu_id, conv3->filtersBlob, gpu_id);
 		AddBlobDiff_gpu(other->conv3->biasBlob,    other->gpu_id, conv3->biasBlob,    gpu_id);
 		AddBlobDiff_gpu(other->conv2->filtersBlob, other->gpu_id, conv2->filtersBlob, gpu_id);
@@ -3772,12 +3772,12 @@ public:
 };
 
 pthread_barrier_t barr;
-struct thread_data_t
+struct cifar10_thread_data_t
 {
 public:
 	Blob_t *batch_samples;
 	Blob_t *batch_labels;
-	Network_t *net;
+	Cifar10Network_t *net;
 	int main_gpu_id;
 	int net_gpu_id;
 	float lr_rate;
@@ -3785,9 +3785,9 @@ public:
 	float weight_decay;
 };
 
-void do_slave(void *data_)
+void cifar10_do_slave(void *data_)
 {
-	thread_data_t *data = (thread_data_t *)data_;
+	cifar10_thread_data_t *data = (cifar10_thread_data_t *)data_;
 	cudaSetDevice(data->net_gpu_id);
 	// CUDA_CHECK( cudaMemcpy(data->net->batch_samples->data_gpu, data->batch_samples->data_cpu, data->batch_samples->count() * sizeof(float), cudaMemcpyHostToDevice) );
 	// CUDA_CHECK( cudaMemcpy(data->net->batch_labels->data_gpu, data->batch_labels->data_cpu, data->batch_labels->count() * sizeof(float), cudaMemcpyHostToDevice) );
@@ -3883,7 +3883,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 
 	cudaSetDevice(main_gpu_id);
 
-	vector<Network_t *> trn_nets(gpus.size());
+	vector<Cifar10Network_t *> trn_nets(gpus.size());
 	for(int i = 0; i < gpus.size(); i++) {
 		trn_nets[i] = NULL;
 	}
@@ -3892,7 +3892,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 	{
 		printf("=========== gpu [%d] ==============\n", gpus[i]);
 		cudaSetDevice(gpus[i]);
-		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
+		trn_nets[i] = new Cifar10Network_t(string("trn_nets_"+i), gpus[i]);
 		trn_nets[i]->BuildNet(trn_batch_size, "");
 		trn_nets[i]->batch_labels->allocate_cpu_data();
 	}
@@ -3904,7 +3904,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 	pthread_attr_t pta;
 	threads = (pthread_t *) malloc(sizeof(pthread_t) * gpus.size());
 	int ret_count = pthread_attr_init(&pta);
-	thread_data_t thread_data[gpus.size()];
+	cifar10_thread_data_t thread_data[gpus.size()];
 
 	// prepare batch data, should use blocking queue
 	Blob_t *batch_samples = new Blob_t(trn_batch_size, 3, 32, 32);
@@ -3933,7 +3933,7 @@ int main_test_multigpu_ok(int argc, char *argv[]) {
 		thread_data[i].batch_samples = batch_samples;
 		thread_data[i].batch_labels = batch_labels;
 
-		ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
+		ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))cifar10_do_slave, (void*)(&(thread_data[i])));
 	}
 
 	for(int i = 0; i < gpus.size(); i++) {
@@ -4001,7 +4001,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 
 	cudaSetDevice(main_gpu_id);
 
-	vector<Network_t *> trn_nets(gpus.size());
+	vector<Cifar10Network_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
 	vector<Blob_t *> batch_labels_slices(gpus.size());
 	vector<int> batch_sizes(gpus.size());
@@ -4021,7 +4021,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 		batch_labels_slices[i] = new Blob_t();
 		batch_sizes[i] = trn_batch_size / gpus.size();
 
-		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
+		trn_nets[i] = new Cifar10Network_t(string("trn_nets_"+i), gpus[i]);
 		trn_nets[i]->BuildNet(batch_sizes[i], "");
 		trn_nets[i]->batch_labels->allocate_cpu_data();
 	}
@@ -4051,10 +4051,10 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
-	Network_t *trn_net = new Network_t("trn_net", main_gpu_id);
+	Cifar10Network_t *trn_net = new Cifar10Network_t("trn_net", main_gpu_id);
 	trn_net->BuildNet(trn_batch_size, "");
 	trn_net->batch_labels->allocate_cpu_data();
-	Network_t *tst_net = new Network_t("tst_net", main_gpu_id);
+	Cifar10Network_t *tst_net = new Cifar10Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 	tst_net->batch_labels->allocate_cpu_data();
 
@@ -4062,7 +4062,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 	pthread_attr_t pta;
 	threads = (pthread_t *) malloc(sizeof(pthread_t) * gpus.size());
 	int ret_count = pthread_attr_init(&pta);
-	thread_data_t thread_data[gpus.size()];
+	cifar10_thread_data_t thread_data[gpus.size()];
 	for(int i = 0; i < gpus.size(); i++) {
 		thread_data[i].lr_rate = lr_rate;
 		thread_data[i].momentum = momentum;
@@ -4096,7 +4096,7 @@ int main_mgpu_ok_loss_is_decreasing(int argc, char *argv[]) {
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
-				ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
+				ret_count = pthread_create(&threads[i], &pta, (void*(*)(void*))cifar10_do_slave, (void*)(&(thread_data[i])));
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
@@ -4197,7 +4197,7 @@ int main_test_memcpy(int argc, char **argv) {
 	return 0;
 }
 
-int main_single_gpu_ok(int argc, char **argv) {
+int main_cifar10_single_gpu_ok(int argc, char **argv) {
 	if(argc != 12) {
 		printf("Usage: <filename> trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
@@ -4234,10 +4234,10 @@ int main_single_gpu_ok(int argc, char **argv) {
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
-	Network_t *trn_net = new Network_t("trn_net", main_gpu_id);
+	Cifar10Network_t *trn_net = new Cifar10Network_t("trn_net", main_gpu_id);
 	trn_net->BuildNet(trn_batch_size, "");
 
-	Network_t *tst_net = new Network_t("tst_net", main_gpu_id);
+	Cifar10Network_t *tst_net = new Cifar10Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 
 	int num_tst_iters = floor(10000 / tst_batch_size);
@@ -4293,23 +4293,24 @@ int main_single_gpu_ok(int argc, char **argv) {
 	return 0;
 }
 
-int main_multi_gpu_ok(int argc, char *argv[]) {
-	if(argc != 13) {
-		LOG(FATAL) << ("Usage: <filename> main_gpu_id trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+int main_cifar10_multi_gpu_ok(int argc, char **argv) {
+	if(argc != 14) {
+		LOG(FATAL) << ("Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
 		return -1;
 	}
 	int main_gpu_id = atoi(argv[1]);
-	string trn_db_filename = string(argv[2]);
-	string tst_db_filename = string(argv[3]);
-	string mean_file = string(argv[4]);
-	float lr_rate = atof(argv[5]);
-	int lr_stepsize = atoi(argv[6]);
-	float momentum = atof(argv[7]);
-	float weight_decay = atof(argv[8]);
-	int trn_batch_size = atoi(argv[9]);
-	int tst_batch_size = atoi(argv[10]);
-	int max_epoch_num = atoi(argv[11]);
-	string gpu_ids_str = string(argv[12]);
+	string db_backend = string(argv[2]);
+	string trn_db_filename = string(argv[3]);
+	string tst_db_filename = string(argv[4]);
+	string mean_file = string(argv[5]);
+	float lr_rate = atof(argv[6]);
+	int lr_stepsize = atoi(argv[7]);
+	float momentum = atof(argv[8]);
+	float weight_decay = atof(argv[9]);
+	int trn_batch_size = atoi(argv[10]);
+	int tst_batch_size = atoi(argv[11]);
+	int max_epoch_num = atoi(argv[12]);
+	string gpu_ids_str = string(argv[13]);
 
 	cudaSetDevice(main_gpu_id);
 	LOG(INFO) << "current gpu id: " << main_gpu_id;
@@ -4342,7 +4343,7 @@ int main_multi_gpu_ok(int argc, char *argv[]) {
 
 	cudaSetDevice(main_gpu_id);
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
-	trn_data_param->backend = "lmdb";
+	trn_data_param->backend = db_backend;
 	trn_data_param->batch_size = trn_batch_size;
 	trn_data_param->source = trn_db_filename;
 	trn_data_param->mean_file = mean_file;
@@ -4351,7 +4352,7 @@ int main_multi_gpu_ok(int argc, char *argv[]) {
 	trn_data_layer->Setup();
 
 	DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
-	tst_data_param->backend = "lmdb";
+	tst_data_param->backend = db_backend;
 	tst_data_param->batch_size = tst_batch_size;
 	tst_data_param->source = tst_db_filename;
 	tst_data_param->mean_file = mean_file;
@@ -4360,11 +4361,11 @@ int main_multi_gpu_ok(int argc, char *argv[]) {
 	tst_data_layer->Setup();
 
 	cudaSetDevice(main_gpu_id);
-	Network_t *tst_net = new Network_t("tst_net", main_gpu_id);
+	Cifar10Network_t *tst_net = new Cifar10Network_t("tst_net", main_gpu_id);
 	tst_net->BuildNet(tst_batch_size, "");
 	// tst_net->SaveNetParams(0);
 
-	vector<Network_t *> trn_nets(gpus.size());
+	vector<Cifar10Network_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
 	vector<Blob_t *> batch_labels_slices(gpus.size());
 	vector<int> batch_sizes(gpus.size());
@@ -4380,7 +4381,7 @@ int main_multi_gpu_ok(int argc, char *argv[]) {
 		LOG(INFO) << "gpu[" <<  gpus[i] << "]:\n";
 		cudaSetDevice(main_gpu_id);
 		batch_sizes[i] = trn_batch_size / gpus.size();
-		trn_nets[i] = new Network_t(string("trn_nets_"+i), gpus[i]);
+		trn_nets[i] = new Cifar10Network_t(string("trn_nets_"+i), gpus[i]);
 		trn_nets[i]->BuildNet(batch_sizes[i], "");
 
 		batch_samples_slices[i] = trn_nets[i]->batch_samples;
@@ -4395,7 +4396,7 @@ int main_multi_gpu_ok(int argc, char *argv[]) {
 	pthread_attr_setdetachstate(&pta, PTHREAD_CREATE_JOINABLE);
 	pthread_barrier_init(&barr, NULL, gpus.size());
 
-	thread_data_t thread_data[gpus.size()];
+	cifar10_thread_data_t thread_data[gpus.size()];
 	for(int i = 0; i < gpus.size(); i++) {
 		thread_data[i].lr_rate = lr_rate;
 		thread_data[i].momentum = momentum;
@@ -4434,7 +4435,7 @@ int main_multi_gpu_ok(int argc, char *argv[]) {
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
-				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))do_slave, (void*)(&(thread_data[i])));
+				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))cifar10_do_slave, (void*)(&(thread_data[i])));
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
@@ -4629,7 +4630,7 @@ int main_test_conv_wigh_group_seems_ok(int argc, char **argv) {
 
 
 // test alex net
-int main(int argc, char **argv) {
+int main_alex_net_single_gpu_to_be_tested(int argc, char **argv) {
 	if(argc != 14) {
 		LOG(FATAL) << "Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n";
 		return -1;
@@ -4723,5 +4724,10 @@ int main(int argc, char **argv) {
 	delete tst_data_param;
 
 	cudaDeviceReset();
+	return 0;
+}
+
+int main(int argc, char **argv) {
+	main_cifar10_multi_gpu_ok(argc, argv);
 	return 0;
 }
