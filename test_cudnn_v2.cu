@@ -4729,6 +4729,6 @@ int main_alex_net_single_gpu(int argc, char **argv) {
 
 int main(int argc, char **argv) {
 	// main_cifar10_multi_gpu_ok(argc, argv);
-	main_alex_net_single_gpu(argc, argc);
+	main_alex_net_single_gpu(argc, argv);
 	return 0;
 }
