@@ -594,6 +594,11 @@ public:
 	string mean_file;
 	int batch_size;
 	int crop_size;
+	bool mirror;
+	float scale;
+	bool has_mean_file;
+	vector<float> mean_values;
+	string phase;
 };
 
 class DataLayer_t : public InternalThread
@@ -603,24 +608,50 @@ public:
 	Blob_t *prefetch_data_;
 	Blob_t *prefetch_label_;
 	Blob_t *mean_;
-	int datum_size_;
+	float *mean_data;
+
+	int crop_size;
+	float scale;
+	bool do_mirror;
+	bool has_mean_file;
+	bool has_mean_values;
 	int datum_channels_;
 	int datum_height_;
 	int datum_width_;
+	int top_height_;
+	int top_width_;
+	int top_datum_size_;
 
+	string phase;
 	shared_ptr<db::DB> db_;
 	shared_ptr<db::Cursor> cursor_;
 
 	DataLayer_t(const DataLayerParameter_t *data_params_) {
 		data_params = const_cast<DataLayerParameter_t *>(data_params_);
 
+		crop_size = data_params->crop_size;
+		scale = data_params->scale;
+		do_mirror = data_params->mirror && (rand() % 2);
+		has_mean_file = data_params->has_mean_file;
+		has_mean_values = data_params->mean_values.size() > 0;
+		phase = data_params->phase;
+
+		LOG(INFO) << "crop_size: " << crop_size << "\n"
+				<< "scale: " << scale << "\n"
+				<< "mirror: " << do_mirror << "\n"
+				<< "has_mean_file: " << "\n"
+				<< "has_mean_values: " << "\n";
+
 		prefetch_data_ = NULL;
 		prefetch_label_ = NULL;
 		mean_ = NULL;
-		datum_size_ = 0;
+		mean_data = NULL;
 		datum_channels_ = 0;
 		datum_height_ = 0;
 		datum_width_ = 0;
+		top_height_ = 0;
+		top_width_ = 0;
+		top_datum_size_ = 0;
 	}
 
 	~DataLayer_t() {
@@ -639,20 +670,33 @@ public:
 		// Read a data point, and use it to initialize the top blob.
 		Datum datum;
 		datum.ParseFromString(cursor_->value());
-		datum_channels_ = datum.channels();
-		datum_height_ = datum.height();
-		datum_width_ = datum.width();
 
-		if(data_params->crop_size && data_params->crop_size < datum_height_ && data_params->crop_size < datum_width_) {
-			datum_size_ = datum.channels() * data_params->crop_size * data_params->crop_size;
-			prefetch_data_ = new Blob_t(data_params->batch_size, datum_channels_, data_params->crop_size, data_params->crop_size);
+		if(datum.encoded()) {
+			cv::Mat cv_img = DecodeDatumToCVMat(datum, true);
+			datum_channels_ = cv_img.channels();
+			datum_height_ = cv_img.rows;
+			datum_width_ = cv_img.cols;
+		} else {
+			datum_channels_ = datum.channels();
+			datum_height_ = datum.height();
+			datum_width_ = datum.width();
+		}
+
+
+		LOG(INFO) << "datum height_: " << datum_height_ << "\n"
+				<< "datum_width_: " << datum_width_ << "\n";
+
+		if(crop_size && crop_size < datum_height_ && crop_size < datum_width_) {
+			prefetch_data_ = new Blob_t(data_params->batch_size, datum_channels_, crop_size, crop_size);
 			prefetch_label_ = new Blob_t(data_params->batch_size, 1, 1, 1);
 
 		} else {
-			datum_size_ = datum_channels_ * datum_height_ * datum_width_;
 			prefetch_data_ = new Blob_t(data_params->batch_size, datum_channels_, datum_height_, datum_width_);
 			prefetch_label_ = new Blob_t(data_params->batch_size, 1, 1, 1);
 		}
+		top_height_ = prefetch_data_->H;
+		top_width_ = prefetch_data_->W;
+		top_datum_size_ = top_height_ * top_width_ * prefetch_data_->C;
 		prefetch_data_->allocate_cpu_data();
 		prefetch_label_->allocate_cpu_data();
 		LOG(INFO) << "prefetch_data_ size: "
@@ -661,18 +705,21 @@ public:
 				<< prefetch_data_->H << ", "
 				<< prefetch_data_->W;
 
-		mean_ = new Blob_t(1, datum_channels_, datum_height_, datum_width_);
-		mean_->allocate_cpu_data();
-		BlobProto blob_proto;
-		ReadProtoFromBinaryFileOrDie(data_params->mean_file.c_str(), &blob_proto);
-		for (int i = 0; i < mean_->count(); ++i) {
-			mean_->data_cpu[i] = (float)blob_proto.data(i);
+		if(has_mean_file) {
+			mean_ = new Blob_t(1, datum_channels_, datum_height_, datum_width_);
+			mean_->allocate_cpu_data();
+			mean_data = mean_->data_cpu;
+			BlobProto blob_proto;
+			ReadProtoFromBinaryFileOrDie(data_params->mean_file.c_str(), &blob_proto);
+			for (int i = 0; i < mean_->count(); ++i) {
+				mean_data[i] = (float)blob_proto.data(i);
+			}
+			LOG(INFO) << "mean_ size: "
+					<< mean_->N << ", "
+					<< mean_->C << ", "
+					<< mean_->H << ", "
+					<< mean_->W;
 		}
-		LOG(INFO) << "mean_ size: "
-				<< mean_->N << ", "
-				<< mean_->C << ", "
-				<< mean_->H << ", "
-				<< mean_->W;
 
 		CreatePrefetchThread();
 	}
@@ -747,6 +794,57 @@ public:
 	}
 
 protected:
+	void Transform(const cv::Mat& cv_img, float* transformed_data) {
+	  const int img_channels = cv_img.channels();
+	  const int img_height = cv_img.rows;
+	  const int img_width = cv_img.cols;
+
+	  int h_off = 0;
+	  int w_off = 0;
+	  cv::Mat cv_cropped_img = cv_img;
+	  if (crop_size) {
+	    // We only do random crop when we do training.
+	    if (phase == "train") {
+	      h_off = rand() % (img_height - crop_size + 1);
+	      w_off = rand() % (img_width - crop_size + 1);
+	    } else {
+	      h_off = (img_height - crop_size) / 2;
+	      w_off = (img_width - crop_size) / 2;
+	    }
+	    cv::Rect roi(w_off, h_off, crop_size, crop_size);
+	    cv_cropped_img = cv_img(roi);
+	  }
+
+	  CHECK(cv_cropped_img.data);
+
+	  int top_index;
+	  for (int h = 0; h < top_height_; ++h) {
+		  const uchar* ptr = cv_cropped_img.ptr<uchar>(h);
+		  int img_index = 0;
+		  for (int w = 0; w < top_width_; ++w) {
+			  for (int c = 0; c < datum_channels_; ++c) {
+				  if (do_mirror) {
+					  top_index = (c * top_height_ + h) * top_width_ + (top_width_ - 1 - w);
+				  } else {
+					  top_index = (c * top_height_ + h) * top_width_ + w;
+				  }
+				  // int top_index = (c * height + h) * width + w;
+				  float pixel = static_cast<float>(ptr[img_index++]);
+				  if (has_mean_file) {
+					  int mean_index = (c * img_height + h_off + h) * img_width + w_off + w;
+					  transformed_data[top_index] = (pixel - mean_data[mean_index]) * scale;
+				  } else {
+					  if (has_mean_values) {
+						  transformed_data[top_index] = (pixel - data_params->mean_values[c]) * scale;
+					  } else {
+						  transformed_data[top_index] = pixel * scale;
+					  }
+				  }
+			  }
+		  }
+	  }
+	}
+
 	void CreatePrefetchThread() {
 		CHECK(StartInternalThread()) << "Thread execution failed";
 	}
@@ -764,40 +862,45 @@ protected:
 			Datum datum;
 			datum.ParseFromString(cursor_->value());
 
-			// read one data
-			const string& data = datum.data();
-			if(data_params->crop_size && data_params->crop_size < datum_height_ && data_params->crop_size < datum_width_) {
-				int h_offset = rand() % (datum_height_ - data_params->crop_size);
-				int w_offset = rand() % (datum_width_ - data_params->crop_size);
-				if(data.size()) {
-					for (int c = 0; c < datum_channels_; ++c) {
-						for (int h = 0; h < data_params->crop_size; ++h) {
-							for (int w = 0; w < data_params->crop_size; ++w) {
-								int index = (c * datum_height_ + h + h_offset) * datum_width_ + w + w_offset;
-								top_data[((item_id * datum_channels_ + c) * data_params->crop_size + h) * data_params->crop_size + w] =
-										static_cast<float>((uint8_t)data[index]) - mean_data[index];
-							}
-						}
-					}
-				} else {
-					for (int c = 0; c < datum_channels_; ++c) {
-						for (int h = 0; h < data_params->crop_size; ++h) {
-							for (int w = 0; w < data_params->crop_size; ++w) {
-								int index = (c * datum_height_ + h + h_offset) * datum_width_ + w + w_offset;
-								top_data[((item_id * datum_channels_ + c) * data_params->crop_size + h) * data_params->crop_size + w] =
-										data[index] - mean_data[index];
-							}
-						}
-					}
-				}
+			if (datum.encoded()) {
+				cv::Mat cv_img = DecodeDatumToCVMat(datum, true);
+				// data augmentation
+				Transform(cv_img, top_data + item_id * top_datum_size_);
 			} else {
-				if (data.size()) {
-					for (int j = 0; j < datum_size_; ++j) {
-						top_data[item_id * datum_size_ + j] = (static_cast<float>((uint8_t)data[j])) - mean_data[j];
+				const string& data = datum.data();
+				if(crop_size && crop_size < datum_height_ && crop_size < datum_width_) {
+					int h_offset = rand() % (datum_height_ - crop_size);
+					int w_offset = rand() % (datum_width_ - crop_size);
+					if(data.size()) {
+						for (int c = 0; c < datum_channels_; ++c) {
+							for (int h = 0; h < crop_size; ++h) {
+								for (int w = 0; w < crop_size; ++w) {
+									int index = (c * datum_height_ + h + h_offset) * datum_width_ + w + w_offset;
+									top_data[((item_id * datum_channels_ + c) * crop_size + h) * crop_size + w] =
+											static_cast<float>((uint8_t)data[index]) - mean_data[index];
+								}
+							}
+						}
+					} else {
+						for (int c = 0; c < datum_channels_; ++c) {
+							for (int h = 0; h < crop_size; ++h) {
+								for (int w = 0; w < crop_size; ++w) {
+									int index = (c * datum_height_ + h + h_offset) * datum_width_ + w + w_offset;
+									top_data[((item_id * datum_channels_ + c) * crop_size + h) * crop_size + w] =
+											data[index] - mean_data[index];
+								}
+							}
+						}
 					}
 				} else {
-					for (int j = 0; j < datum_size_; ++j) {
-						top_data[item_id * datum_size_ + j] = (datum.float_data(j)) - mean_data[j];
+					if (data.size()) {
+						for (int j = 0; j < top_datum_size_; ++j) {
+							top_data[item_id * top_datum_size_ + j] = (static_cast<float>((uint8_t)data[j])) - mean_data[j];
+						}
+					} else {
+						for (int j = 0; j < top_datum_size_; ++j) {
+							top_data[item_id * top_datum_size_ + j] = (datum.float_data(j)) - mean_data[j];
+						}
 					}
 				}
 			}
@@ -3173,7 +3276,7 @@ public:
 		conv2g = new ConvolutionWithGroupLayer_t(conv2g_params);
 		CURAND_CHECK( curandGenerateNormal(curand_generator, conv2g->filtersBlob->data_gpu, conv2g->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
-		gpu_set(conv2g->biasBlob->count(), 0, conv2g->biasBlob->data_gpu);
+		gpu_set(conv2g->biasBlob->count(), float(0.1f), conv2g->biasBlob->data_gpu);
 		conv2g->Setup(pool1_top, conv2g_top);
 		LOG(INFO) << "conv2g top: "
 				<< conv2g_top->N << ", "
@@ -3269,7 +3372,7 @@ public:
 		conv4g = new ConvolutionWithGroupLayer_t(conv4g_params);
 		CURAND_CHECK( curandGenerateNormal(curand_generator, conv4g->filtersBlob->data_gpu, conv4g->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 		// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
-		gpu_set(conv4g->biasBlob->count(), 0, conv4g->biasBlob->data_gpu);
+		gpu_set(conv4g->biasBlob->count(), float(0.1f), conv4g->biasBlob->data_gpu);
 		conv4g->Setup(relu3_top, conv4g_top);
 		LOG(INFO) << "conv4g top: "
 				<< conv4g_top->N << ", "
@@ -4683,6 +4786,10 @@ int main_alex_net_single_gpu(int argc, char **argv) {
 	trn_data_param->source = trn_db_filename;
 	trn_data_param->mean_file = mean_file;
 	trn_data_param->crop_size = 227;
+	trn_data_param->scale = 1.0f;
+	trn_data_param->mirror = true;
+	trn_data_param->has_mean_file = true;
+	trn_data_param->phase = "train";
 	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
 	trn_data_layer->Setup();
 
@@ -4692,6 +4799,10 @@ int main_alex_net_single_gpu(int argc, char **argv) {
 	tst_data_param->source = tst_db_filename;
 	tst_data_param->mean_file = mean_file;
 	tst_data_param->crop_size = 227;
+	tst_data_param->scale = 1.0f;
+	tst_data_param->mirror = false;
+	tst_data_param->has_mean_file = true;
+	tst_data_param->phase = "test";
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
@@ -4810,6 +4921,10 @@ int main_alexnet_multi_gpu(int argc, char **argv) {
 	trn_data_param->source = trn_db_filename;
 	trn_data_param->mean_file = mean_file;
 	trn_data_param->crop_size = 227;
+	trn_data_param->scale = 1.0f;
+	trn_data_param->mirror = true;
+	trn_data_param->has_mean_file = true;
+	trn_data_param->phase = "train";
 	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
 	trn_data_layer->Setup();
 
@@ -4819,6 +4934,10 @@ int main_alexnet_multi_gpu(int argc, char **argv) {
 	tst_data_param->source = tst_db_filename;
 	tst_data_param->mean_file = mean_file;
 	tst_data_param->crop_size = 227;
+	tst_data_param->scale = 1.0f;
+	tst_data_param->mirror = false;
+	tst_data_param->has_mean_file = true;
+	tst_data_param->phase = "test";
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
@@ -4955,12 +5074,12 @@ int main_alexnet_multi_gpu(int argc, char **argv) {
 	ret_count = pthread_attr_destroy(&pta);
 	free(threads); threads = NULL;
 	cudaDeviceReset();
-	exit(EXIT_SUCCESS);
+	return 0;
 }
 
 int main(int argc, char **argv) {
 	// main_cifar10_multi_gpu_ok(argc, argv);
-	// main_alex_net_single_gpu(argc, argv);
-	main_alexnet_multi_gpu(argc, argv);
+	main_alex_net_single_gpu(argc, argv);
+	// main_alexnet_multi_gpu(argc, argv);
 	return 0;
 }
