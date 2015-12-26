@@ -4630,7 +4630,7 @@ int main_test_conv_wigh_group_seems_ok(int argc, char **argv) {
 
 
 // test alex net
-int main_alex_net_single_gpu_to_be_tested(int argc, char **argv) {
+int main_alex_net_single_gpu(int argc, char **argv) {
 	if(argc != 14) {
 		LOG(FATAL) << "Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n";
 		return -1;
@@ -4728,6 +4728,7 @@ int main_alex_net_single_gpu_to_be_tested(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-	main_cifar10_multi_gpu_ok(argc, argv);
+	// main_cifar10_multi_gpu_ok(argc, argv);
+	main_alex_net_single_gpu(argc, argc);
 	return 0;
 }
