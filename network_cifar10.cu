@@ -9,6 +9,7 @@ Cifar10Network_t::Cifar10Network_t(string net_name_, int gpu_id_) {
 	curand_rngtype = CURAND_RNG_PSEUDO_DEFAULT;
 	cublas_handle = NULL;
 
+	is_allocate_top_mem = true;
 	batch_samples = NULL;
 	batch_labels = NULL;
 
@@ -144,7 +145,9 @@ void Cifar10Network_t::DestroyNet() {
 	CUBLAS_CHECK( cublasDestroy(cublas_handle) );
 }
 
-void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) {
+void Cifar10Network_t::BuildNet(int batch_size_, bool is_allocate_top_mem_, const string &net_params_file) {
+
+	is_allocate_top_mem = is_allocate_top_mem_;
 
 	cudaSetDevice(gpu_id);
 
@@ -156,10 +159,13 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 
 	batch_samples = new Blob_t(batch_size_, 3, 32, 32);
 	batch_labels = new Blob_t(batch_size_, 1, 1, 1);
-	batch_samples->allocate_gpu_data();
-	batch_samples->allocate_gpu_diff();
-	batch_labels->allocate_gpu_data();
-	batch_labels->allocate_cpu_data();
+
+	if(is_allocate_top_mem) {
+		batch_samples->allocate_gpu_data();
+		batch_samples->allocate_gpu_diff();
+		batch_labels->allocate_gpu_data();
+		batch_labels->allocate_cpu_data();
+	}
 
 	LOG(INFO) << "conv1 setup.\n";
 	conv1_top = new Blob_t();
@@ -179,7 +185,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->filtersBlob->data_gpu, conv1->filtersBlob->count(), (float)0.0f, (float)0.0001f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->biasBlob->data_gpu, conv1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv1->biasBlob->count(), 0, conv1->biasBlob->data_gpu);
-	conv1->Setup(batch_samples, conv1_top);
+	conv1->Setup(batch_samples, conv1_top, is_allocate_top_mem);
 
 
 	LOG(INFO) << "relu1 setup.\n";
@@ -187,7 +193,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	relu1_params = new ActivationParameter_t();
 	relu1_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu1 = new ActivationLayer_t(relu1_params);
-	relu1->Setup(conv1_top, relu1_top);
+	relu1->Setup(conv1_top, relu1_top, is_allocate_top_mem);
 
 	LOG(INFO) << "mp1 setup.\n";
 	mp1_top = new Blob_t();
@@ -200,7 +206,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	mp1_params->stride_h = 2;
 	mp1_params->stride_w = 2;
 	mp1 = new PoolingLayer_t(mp1_params);
-	mp1->Setup(relu1_top, mp1_top);
+	mp1->Setup(relu1_top, mp1_top, is_allocate_top_mem);
 
 	LOG(INFO) << "conv2 setup.\n";
 	conv2_top = new Blob_t();
@@ -220,7 +226,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->filtersBlob->data_gpu, conv2->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv2->biasBlob->count(), 0, conv2->biasBlob->data_gpu);
-	conv2->Setup(mp1_top, conv2_top);
+	conv2->Setup(mp1_top, conv2_top, is_allocate_top_mem);
 
 
 	LOG(INFO) << "relu2 setup.\n";
@@ -241,7 +247,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	mp2_params->stride_h = 2;
 	mp2_params->stride_w = 2;
 	mp2 = new PoolingLayer_t(mp2_params);
-	mp2->Setup(relu2_top, mp2_top);
+	mp2->Setup(relu2_top, mp2_top, is_allocate_top_mem);
 
 	LOG(INFO) << "conv3 setup.\n";
 	conv3_top = new Blob_t();
@@ -261,7 +267,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv3->filtersBlob->data_gpu, conv3->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv3->biasBlob->data_gpu, conv3->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv3->biasBlob->count(), 0, conv3->biasBlob->data_gpu);
-	conv3->Setup(mp2_top, conv3_top);
+	conv3->Setup(mp2_top, conv3_top, is_allocate_top_mem);
 
 
 	LOG(INFO) << "relu3 setup.\n";
@@ -269,7 +275,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	relu3_params = new ActivationParameter_t();
 	relu3_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu3 = new ActivationLayer_t(relu3_params);
-	relu3->Setup(conv3_top, relu3_top);
+	relu3->Setup(conv3_top, relu3_top, is_allocate_top_mem);
 
 	LOG(INFO) << "mp3 setup.\n";
 	mp3_top = new Blob_t();
@@ -282,14 +288,14 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	mp3_params->stride_h = 2;
 	mp3_params->stride_w = 2;
 	mp3 = new PoolingLayer_t(mp3_params);
-	mp3->Setup(relu3_top, mp3_top);
+	mp3->Setup(relu3_top, mp3_top, is_allocate_top_mem);
 
 	LOG(INFO) << "ip1 setup.\n";
 	ip1_top = new Blob_t();
 	ip1_params = new FullyConnectedParameter_t();
 	ip1_params->hidden_size = 10;
 	ip1 = new FullyConnectedLayer_t(ip1_params);
-	ip1->Setup(mp3_top, ip1_top);
+	ip1->Setup(mp3_top, ip1_top, is_allocate_top_mem);
 	CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->filtersBlob->data_gpu, ip1->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(ip1->biasBlob->count(), 0, ip1->biasBlob->data_gpu);
@@ -317,7 +323,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	sml1_params->ignore_label = -1;
 	sml1_params->normalize = false;
 	sml1 = new SoftmaxWithLossLayer_t(sml1_params);
-	sml1->Setup(ip1_top, sml1_top);
+	sml1->Setup(ip1_top, sml1_top, is_allocate_top_mem);
 
 	//		printf("argmax1 setup.\n");
 	//		argmax1_top = new Blob_t();
@@ -332,7 +338,7 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 	accuracy1_params = new AccuracyParameter_t();
 	accuracy1_params->top_k = 1;
 	accuracy1 = new AccuracyLayer_t(accuracy1_params);
-	accuracy1->Setup(ip1_top, accuracy1_top);
+	accuracy1->Setup(ip1_top, accuracy1_top, is_allocate_top_mem);
 
 	LOG(INFO) << "initialize old net params.\n";
 	conv1_filtersBlob_old = new Blob_t(conv1->filtersBlob->N, conv1->filtersBlob->C, conv1->filtersBlob->H, conv1->filtersBlob->W);
@@ -367,6 +373,11 @@ void Cifar10Network_t::BuildNet(int batch_size_, const string &net_params_file) 
 }
 
 void Cifar10Network_t::Forward(float *loss, float *accuracy) {
+
+	if(!is_allocate_top_mem) {
+		return;
+	}
+
 	cudaSetDevice(gpu_id);
 
 	// printf("conv1 forward.\n");
@@ -418,6 +429,11 @@ void Cifar10Network_t::Forward(float *loss, float *accuracy) {
 }
 
 void Cifar10Network_t::Backward() {
+
+	if(!is_allocate_top_mem) {
+		return;
+	}
+
 	cudaSetDevice(gpu_id);
 
 	// printf("sml1 backward.\n");
@@ -461,6 +477,11 @@ void Cifar10Network_t::Backward() {
 }
 
 void Cifar10Network_t::ForwardBackward(float *loss, float *accuracy) {
+
+	if(!is_allocate_top_mem) {
+		return;
+	}
+
 	Forward(loss, accuracy);
 	Backward();
 }

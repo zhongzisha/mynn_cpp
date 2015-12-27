@@ -26,6 +26,7 @@ public:
 	curandRngType_t curand_rngtype;
 	cublasHandle_t cublas_handle;
 
+	bool is_allocate_top_mem;
 	Blob_t *batch_samples;
 	Blob_t *batch_labels;
 
@@ -107,7 +108,7 @@ public:
 
 	void DestroyNet();
 
-	void BuildNet(int batch_size_, const string &net_params_file = "");
+	void BuildNet(int batch_size_, bool is_allocate_top_mem_ = true, const string &net_params_file = "");
 
 	void Forward(float *loss, float *accuracy);
 
