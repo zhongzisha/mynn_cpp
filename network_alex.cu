@@ -10,6 +10,7 @@ AlexNetwork_t::AlexNetwork_t(string net_name_, int gpu_id_) {
 	curand_rngtype = CURAND_RNG_PSEUDO_DEFAULT;
 	cublas_handle = NULL;
 
+	is_allocate_top_mem = true;
 	batch_samples = NULL;
 	batch_labels = NULL;
 
@@ -208,7 +209,9 @@ void AlexNetwork_t::DestroyNet() {
 	CUBLAS_CHECK( cublasDestroy(cublas_handle) );
 }
 
-void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
+void AlexNetwork_t::BuildNet(int batch_size_, bool is_allocate_top_mem_, const string &net_params_file) {
+
+	is_allocate_top_mem = is_allocate_top_mem_;
 
 	cudaSetDevice(gpu_id);
 
@@ -220,10 +223,13 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 
 	batch_samples = new Blob_t(batch_size_, 3, 227, 227);
 	batch_labels = new Blob_t(batch_size_, 1, 1, 1);
-	batch_samples->allocate_gpu_data();
-	batch_samples->allocate_gpu_diff();
-	batch_labels->allocate_gpu_data();
-	batch_labels->allocate_cpu_data();
+
+	if(is_allocate_top_mem) {
+		batch_samples->allocate_gpu_data();
+		batch_samples->allocate_gpu_diff();
+		batch_labels->allocate_gpu_data();
+		batch_labels->allocate_cpu_data();
+	}
 
 	LOG(INFO) << "conv1 setup.\n";
 	conv1_top = new Blob_t();
@@ -243,7 +249,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->filtersBlob->data_gpu, conv1->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv1->biasBlob->data_gpu, conv1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv1->biasBlob->count(), 0, conv1->biasBlob->data_gpu);
-	conv1->Setup(batch_samples, conv1_top);
+	conv1->Setup(batch_samples, conv1_top, is_allocate_top_mem);
 	LOG(INFO) << "conv1 top: "
 			<< conv1_top->N << ", "
 			<< conv1_top->C << ", "
@@ -256,7 +262,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	relu1_params = new ActivationParameter_t();
 	relu1_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu1 = new ActivationLayer_t(relu1_params);
-	relu1->Setup(conv1_top, relu1_top);
+	relu1->Setup(conv1_top, relu1_top, is_allocate_top_mem);
 	LOG(INFO) << "relu1 top: "
 			<< relu1_top->N << ", "
 			<< relu1_top->C << ", "
@@ -274,7 +280,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	pool1_params->stride_h = 2;
 	pool1_params->stride_w = 2;
 	pool1 = new PoolingLayer_t(pool1_params);
-	pool1->Setup(relu1_top, pool1_top);
+	pool1->Setup(relu1_top, pool1_top, is_allocate_top_mem);
 	LOG(INFO) << "pool1 top: "
 			<< pool1_top->N << ", "
 			<< pool1_top->C << ", "
@@ -301,7 +307,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv2g->filtersBlob->data_gpu, conv2g->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv2g->biasBlob->count(), float(0.1f), conv2g->biasBlob->data_gpu);
-	conv2g->Setup(pool1_top, conv2g_top);
+	conv2g->Setup(pool1_top, conv2g_top, is_allocate_top_mem);
 	LOG(INFO) << "conv2g top: "
 			<< conv2g_top->N << ", "
 			<< conv2g_top->C << ", "
@@ -314,7 +320,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	relu2_params = new ActivationParameter_t();
 	relu2_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu2 = new ActivationLayer_t(relu2_params);
-	relu2->Setup(conv2g_top, relu2_top);
+	relu2->Setup(conv2g_top, relu2_top, is_allocate_top_mem);
 	LOG(INFO) << "relu2 top: "
 			<< relu2_top->N << ", "
 			<< relu2_top->C << ", "
@@ -332,7 +338,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	pool2_params->stride_h = 2;
 	pool2_params->stride_w = 2;
 	pool2 = new PoolingLayer_t(pool2_params);
-	pool2->Setup(relu2_top, pool2_top);
+	pool2->Setup(relu2_top, pool2_top, is_allocate_top_mem);
 	LOG(INFO) << "pool2 top: "
 			<< pool2_top->N << ", "
 			<< pool2_top->C << ", "
@@ -357,7 +363,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv3->filtersBlob->data_gpu, conv3->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv3->biasBlob->data_gpu, conv3->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv3->biasBlob->count(), 0, conv3->biasBlob->data_gpu);
-	conv3->Setup(pool2_top, conv3_top);
+	conv3->Setup(pool2_top, conv3_top, is_allocate_top_mem);
 	LOG(INFO) << "conv3 top: "
 			<< conv3_top->N << ", "
 			<< conv3_top->C << ", "
@@ -370,7 +376,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	relu3_params = new ActivationParameter_t();
 	relu3_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu3 = new ActivationLayer_t(relu3_params);
-	relu3->Setup(conv3_top, relu3_top);
+	relu3->Setup(conv3_top, relu3_top, is_allocate_top_mem);
 	LOG(INFO) << "relu3 top: "
 			<< relu3_top->N << ", "
 			<< relu3_top->C << ", "
@@ -397,7 +403,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv4g->filtersBlob->data_gpu, conv4g->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv4g->biasBlob->count(), float(0.1f), conv4g->biasBlob->data_gpu);
-	conv4g->Setup(relu3_top, conv4g_top);
+	conv4g->Setup(relu3_top, conv4g_top, is_allocate_top_mem);
 	LOG(INFO) << "conv4g top: "
 			<< conv4g_top->N << ", "
 			<< conv4g_top->C << ", "
@@ -409,7 +415,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	relu4_params = new ActivationParameter_t();
 	relu4_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu4 = new ActivationLayer_t(relu4_params);
-	relu4->Setup(conv4g_top, relu4_top);
+	relu4->Setup(conv4g_top, relu4_top, is_allocate_top_mem);
 	LOG(INFO) << "relu4 top: "
 			<< relu4_top->N << ", "
 			<< relu4_top->C << ", "
@@ -436,7 +442,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	CURAND_CHECK( curandGenerateNormal(curand_generator, conv5g->filtersBlob->data_gpu, conv5g->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, conv2->biasBlob->data_gpu, conv2->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(conv5g->biasBlob->count(), float(0.1f), conv5g->biasBlob->data_gpu);
-	conv5g->Setup(relu4_top, conv5g_top);
+	conv5g->Setup(relu4_top, conv5g_top, is_allocate_top_mem);
 	LOG(INFO) << "conv5g top: "
 			<< conv5g_top->N << ", "
 			<< conv5g_top->C << ", "
@@ -448,7 +454,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	relu5_params = new ActivationParameter_t();
 	relu5_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu5 = new ActivationLayer_t(relu5_params);
-	relu5->Setup(conv5g_top, relu5_top);
+	relu5->Setup(conv5g_top, relu5_top, is_allocate_top_mem);
 	LOG(INFO) << "relu5 top: "
 			<< relu5_top->N << ", "
 			<< relu5_top->C << ", "
@@ -466,7 +472,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	pool5_params->stride_h = 2;
 	pool5_params->stride_w = 2;
 	pool5 = new PoolingLayer_t(pool5_params);
-	pool5->Setup(relu5_top, pool5_top);
+	pool5->Setup(relu5_top, pool5_top, is_allocate_top_mem);
 	LOG(INFO) << "pool5 top: "
 			<< pool5_top->N << ", "
 			<< pool5_top->C << ", "
@@ -478,7 +484,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	fc6_params = new FullyConnectedParameter_t();
 	fc6_params->hidden_size = 4096;
 	fc6 = new FullyConnectedLayer_t(fc6_params);
-	fc6->Setup(pool5_top, fc6_top);
+	fc6->Setup(pool5_top, fc6_top, is_allocate_top_mem);
 	CURAND_CHECK( curandGenerateNormal(curand_generator, fc6->filtersBlob->data_gpu, fc6->filtersBlob->count(), (float)0.0f, (float)0.005f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(fc6->biasBlob->count(), float(0.1f), fc6->biasBlob->data_gpu);
@@ -493,7 +499,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	relu6_params = new ActivationParameter_t();
 	relu6_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu6 = new ActivationLayer_t(relu6_params);
-	relu6->Setup(fc6_top, relu6_top);
+	relu6->Setup(fc6_top, relu6_top, is_allocate_top_mem);
 	LOG(INFO) << "relu6 top: "
 			<< relu6_top->N << ", "
 			<< relu6_top->C << ", "
@@ -505,7 +511,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	fc7_params = new FullyConnectedParameter_t();
 	fc7_params->hidden_size = 4096;
 	fc7 = new FullyConnectedLayer_t(fc7_params);
-	fc7->Setup(relu6_top, fc7_top);
+	fc7->Setup(relu6_top, fc7_top, is_allocate_top_mem);
 	CURAND_CHECK( curandGenerateNormal(curand_generator, fc7->filtersBlob->data_gpu, fc7->filtersBlob->count(), (float)0.0f, (float)0.005f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(fc7->biasBlob->count(), float(0.1f), fc7->biasBlob->data_gpu);
@@ -520,7 +526,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	relu7_params = new ActivationParameter_t();
 	relu7_params->cudnn_activation_mode = CUDNN_ACTIVATION_RELU;
 	relu7 = new ActivationLayer_t(relu7_params);
-	relu7->Setup(fc7_top, relu7_top);
+	relu7->Setup(fc7_top, relu7_top, is_allocate_top_mem);
 	LOG(INFO) << "relu7 top: "
 			<< relu7_top->N << ", "
 			<< relu7_top->C << ", "
@@ -532,7 +538,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	fc8_params = new FullyConnectedParameter_t();
 	fc8_params->hidden_size = 1000;
 	fc8 = new FullyConnectedLayer_t(fc8_params);
-	fc8->Setup(relu7_top, fc8_top);
+	fc8->Setup(relu7_top, fc8_top, is_allocate_top_mem);
 	CURAND_CHECK( curandGenerateNormal(curand_generator, fc8->filtersBlob->data_gpu, fc8->filtersBlob->count(), (float)0.0f, (float)0.01f) );
 	// CURAND_CHECK( curandGenerateNormal(curand_generator, ip1->biasBlob->data_gpu, ip1->biasBlob->count(), (float)0.0f, (float)0.01f) );
 	gpu_set(fc8->biasBlob->count(), float(0.0f), fc8->biasBlob->data_gpu);
@@ -565,7 +571,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	sml1_params->ignore_label = -1;
 	sml1_params->normalize = false;
 	sml1 = new SoftmaxWithLossLayer_t(sml1_params);
-	sml1->Setup(fc8_top, sml1_top);
+	sml1->Setup(fc8_top, sml1_top, is_allocate_top_mem);
 	LOG(INFO) << "sml1 top: "
 			<< sml1_top->N << ", "
 			<< sml1_top->C << ", "
@@ -585,7 +591,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, const string &net_params_file) {
 	accuracy1_params = new AccuracyParameter_t();
 	accuracy1_params->top_k = 1;
 	accuracy1 = new AccuracyLayer_t(accuracy1_params);
-	accuracy1->Setup(fc8_top, accuracy1_top);
+	accuracy1->Setup(fc8_top, accuracy1_top, is_allocate_top_mem);
 	LOG(INFO) << "accuracy1 top: "
 			<< accuracy1_top->N << ", "
 			<< accuracy1_top->C << ", "

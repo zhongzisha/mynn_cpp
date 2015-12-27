@@ -1,12 +1,12 @@
 /*
- * network_alex.hpp
+ * cifar10_network.hpp
  *
  *  Created on: Dec 27, 2015
  *      Author: ubuntu
  */
 
-#ifndef NETWORK_ALEX_HPP_
-#define NETWORK_ALEX_HPP_
+#ifndef NETWORK_CIFAR10_CONVG_HPP_
+#define NETWORK_CIFAR10_CONVG_HPP_
 
 #include "common.hpp"
 #include "blob.hpp"
@@ -16,7 +16,7 @@
 #include "loss_layer.hpp"
 
 
-class AlexNetwork_t
+class Cifar10Network_convg_t
 {
 public:
 	string net_name;
@@ -38,9 +38,9 @@ public:
 	ActivationLayer_t *relu1;
 	Blob_t *relu1_top;
 
-	PoolingParameter_t *pool1_params;
-	PoolingLayer_t *pool1;
-	Blob_t *pool1_top;
+	PoolingParameter_t *mp1_params;
+	PoolingLayer_t *mp1;
+	Blob_t *mp1_top;
 
 	ConvolutionWithGroupParameter_t *conv2g_params;
 	ConvolutionWithGroupLayer_t *conv2g;
@@ -50,9 +50,9 @@ public:
 	ActivationLayer_t *relu2;
 	Blob_t *relu2_top;
 
-	PoolingParameter_t *pool2_params;
-	PoolingLayer_t *pool2;
-	Blob_t *pool2_top;
+	PoolingParameter_t *mp2_params;
+	PoolingLayer_t *mp2;
+	Blob_t *mp2_top;
 
 	ConvolutionParameter_t *conv3_params;
 	ConvolutionLayer_t *conv3;
@@ -62,50 +62,13 @@ public:
 	ActivationLayer_t *relu3;
 	Blob_t *relu3_top;
 
-//	PoolingParameter_t *mp3_params;
-//	PoolingLayer_t *mp3;
-//	Blob_t *mp3_top;
+	PoolingParameter_t *mp3_params;
+	PoolingLayer_t *mp3;
+	Blob_t *mp3_top;
 
-	ConvolutionWithGroupParameter_t *conv4g_params;
-	ConvolutionWithGroupLayer_t *conv4g;
-	Blob_t *conv4g_top;
-
-	ActivationParameter_t *relu4_params;
-	ActivationLayer_t *relu4;
-	Blob_t *relu4_top;
-
-	ConvolutionWithGroupParameter_t *conv5g_params;
-	ConvolutionWithGroupLayer_t *conv5g;
-	Blob_t *conv5g_top;
-
-	ActivationParameter_t *relu5_params;
-	ActivationLayer_t *relu5;
-	Blob_t *relu5_top;
-
-	PoolingParameter_t *pool5_params;
-	PoolingLayer_t *pool5;
-	Blob_t *pool5_top;
-
-	FullyConnectedParameter_t *fc6_params;
-	FullyConnectedLayer_t *fc6;
-	Blob_t *fc6_top;
-
-	ActivationParameter_t *relu6_params;
-	ActivationLayer_t *relu6;
-	Blob_t *relu6_top;
-
-	FullyConnectedParameter_t *fc7_params;
-	FullyConnectedLayer_t *fc7;
-	Blob_t *fc7_top;
-
-	ActivationParameter_t *relu7_params;
-	ActivationLayer_t *relu7;
-	Blob_t *relu7_top;
-
-	FullyConnectedParameter_t *fc8_params;
-	FullyConnectedLayer_t *fc8;
-	Blob_t *fc8_top;
-
+	FullyConnectedParameter_t *ip1_params;
+	FullyConnectedLayer_t *ip1;
+	Blob_t *ip1_top;
 
 	// the following softmax layer and multinomial logistic loss layer have been replaced by the softmaxwithloss layer.
 	//	SoftmaxParameter_t *sm1_params;
@@ -135,21 +98,13 @@ public:
 	Blob_t *conv2g_biasBlob_old;
 	Blob_t *conv3_filtersBlob_old;
 	Blob_t *conv3_biasBlob_old;
-	Blob_t *conv4g_filtersBlob_old;
-	Blob_t *conv4g_biasBlob_old;
-	Blob_t *conv5g_filtersBlob_old;
-	Blob_t *conv5g_biasBlob_old;
-	Blob_t *fc6_filtersBlob_old;
-	Blob_t *fc6_biasBlob_old;
-	Blob_t *fc7_filtersBlob_old;
-	Blob_t *fc7_biasBlob_old;
-	Blob_t *fc8_filtersBlob_old;
-	Blob_t *fc8_biasBlob_old;
+	Blob_t *ip1_filtersBlob_old;
+	Blob_t *ip1_biasBlob_old;
 
 
-	AlexNetwork_t(string net_name_, int gpu_id_ = 0);
+	Cifar10Network_convg_t(string net_name_, int gpu_id_ = 0);
 
-	~AlexNetwork_t();
+	~Cifar10Network_convg_t();
 
 	void DestroyNet();
 
@@ -161,7 +116,7 @@ public:
 
 	void ForwardBackward(float *loss, float *accuracy);
 
-	void ComputeUpdateValueSingle(Blob_t *param_gradient_blob, Blob_t *param_blob_old, float lr_rate, float momentum, float weight_decay) ;
+	void ComputeUpdateValueSingle(Blob_t *param_gradient_blob, Blob_t *param_blob_old, float lr_rate, float momentum, float weight_decay);
 
 	void ComputeUpdateValue(float lr_rate, float momentum, float weight_decay);
 
@@ -169,14 +124,13 @@ public:
 
 	void SaveNetParams(int epoch);
 
-	void CopyNetParamsFrom(const AlexNetwork_t *other);
+	void CopyNetParamsFrom(const Cifar10Network_convg_t *other);
 
-	void AddNetParamsDiffFrom(const AlexNetwork_t *other);
+	void AddNetParamsDiffFrom(const Cifar10Network_convg_t *other);
 
-	void ClearNetParamsDiff();
+	void ClearNetParamsDiff() ;
 
 };
 
 
-
-#endif /* NETWORK_ALEX_HPP_ */
+#endif /* CIFAR10_NETWORK_HPP_ */

@@ -1,5 +1,4 @@
 
-
 #include <glog/logging.h>
 #include <pthread.h>
 
@@ -32,13 +31,14 @@ using namespace cv;
 #include "network_cifar10.hpp"
 #include "network_alex.hpp"
 
+
 pthread_barrier_t barr;
 struct thread_data_t
 {
 public:
 	Blob_t *batch_samples;
 	Blob_t *batch_labels;
-	Cifar10Network_t *net;
+	AlexNetwork_t *net;
 	int main_gpu_id;
 	int net_gpu_id;
 	float lr_rate;
@@ -46,10 +46,10 @@ public:
 	float weight_decay;
 };
 
-pthread_mutex_t mutex_sum = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_trn = PTHREAD_MUTEX_INITIALIZER;
 float trn_loss = 0.0f;
 float trn_acc  = 0.0f;
-void thread_func(void *data_)
+void thread_func_fwbp(void *data_)
 {
 	thread_data_t *data = (thread_data_t *)data_;
 	cudaSetDevice(data->net_gpu_id);
@@ -60,18 +60,37 @@ void thread_func(void *data_)
 	data->net->ComputeUpdateValue(data->lr_rate, data->momentum, data->weight_decay);
 	// printf("gpuid[%d]: trn_loss=%.6f, trn_acc=%.6f\n", data->net_gpu_id, trn_loss, trn_acc);
 
-	pthread_mutex_lock(&mutex_sum);
+	pthread_mutex_lock(&mutex_trn);
 	trn_loss += trn_loss_batch;
 	trn_acc  += trn_loss_batch;
-	pthread_mutex_unlock(&mutex_sum);
+	pthread_mutex_unlock(&mutex_trn);
 
 	pthread_barrier_wait(&barr);
 }
 
+pthread_mutex_t mutex_tst = PTHREAD_MUTEX_INITIALIZER;
+float tst_loss = 0.0f;
+float tst_acc  = 0.0f;
+void thread_func_fw(void *data_)
+{
+	thread_data_t *data = (thread_data_t *)data_;
+	cudaSetDevice(data->net_gpu_id);
+	// CUDA_CHECK( cudaMemcpy(data->net->batch_samples->data_gpu, data->batch_samples->data_cpu, data->batch_samples->count() * sizeof(float), cudaMemcpyHostToDevice) );
+	// CUDA_CHECK( cudaMemcpy(data->net->batch_labels->data_gpu, data->batch_labels->data_cpu, data->batch_labels->count() * sizeof(float), cudaMemcpyHostToDevice) );
+	float tst_loss_batch, tst_acc_batch;
+	data->net->Forward(&tst_loss_batch, &tst_acc_batch);
+
+	pthread_mutex_lock(&mutex_tst);
+	tst_loss += tst_loss_batch;
+	tst_acc  += tst_loss_batch;
+	pthread_mutex_unlock(&mutex_tst);
+
+	pthread_barrier_wait(&barr);
+}
 
 int main(int argc, char **argv) {
-	if(argc != 14) {
-		LOG(FATAL) << ("Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay trn_batch_size tst_batch_size max_epoch_num gpu_ids\n");
+	if(argc != 13) {
+		LOG(FATAL) << ("Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay batch_size max_epoch_num gpu_ids\n");
 		return -1;
 	}
 	int main_gpu_id = atoi(argv[1]);
@@ -83,10 +102,9 @@ int main(int argc, char **argv) {
 	int lr_stepsize = atoi(argv[7]);
 	float momentum = atof(argv[8]);
 	float weight_decay = atof(argv[9]);
-	int trn_batch_size = atoi(argv[10]);
-	int tst_batch_size = atoi(argv[11]);
-	int max_epoch_num = atoi(argv[12]);
-	string gpu_ids_str = string(argv[13]);
+	int batch_size = atoi(argv[10]);
+	int max_epoch_num = atoi(argv[11]);
+	string gpu_ids_str = string(argv[12]);
 
 	cudaSetDevice(main_gpu_id);
 	LOG(INFO) << "current gpu id: " << main_gpu_id;
@@ -110,20 +128,20 @@ int main(int argc, char **argv) {
 		gpus.push_back(main_gpu_id);
 	}
 
-	if(trn_batch_size % gpus.size() != 0) {
-		LOG(FATAL) << "trn_batch_size: " << trn_batch_size
+	if(batch_size % gpus.size() != 0) {
+		LOG(FATAL) << "batch_size: " << batch_size
 				<< ", number of given gpus: " << gpus.size()
-				<< ", trn_batch_size must be times of the number of given gpus.";
+				<< ", batch_size must be times of the number of given gpus.";
 		return -1;
 	}
 
 	cudaSetDevice(main_gpu_id);
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
 	trn_data_param->backend = db_backend;
-	trn_data_param->batch_size = trn_batch_size;
+	trn_data_param->batch_size = batch_size;
 	trn_data_param->source = trn_db_filename;
 	trn_data_param->mean_file = mean_file;
-	trn_data_param->crop_size = 0;
+	trn_data_param->crop_size = 227;
 	trn_data_param->scale = 1.0f;
 	trn_data_param->mirror = true;
 	trn_data_param->has_mean_file = true;
@@ -133,10 +151,10 @@ int main(int argc, char **argv) {
 
 	DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
 	tst_data_param->backend = db_backend;
-	tst_data_param->batch_size = tst_batch_size;
+	tst_data_param->batch_size = batch_size;
 	tst_data_param->source = tst_db_filename;
 	tst_data_param->mean_file = mean_file;
-	tst_data_param->crop_size = 0;
+	tst_data_param->crop_size = 227;
 	tst_data_param->scale = 1.0f;
 	tst_data_param->mirror = false;
 	tst_data_param->has_mean_file = true;
@@ -145,11 +163,11 @@ int main(int argc, char **argv) {
 	tst_data_layer->Setup();
 
 	cudaSetDevice(main_gpu_id);
-	Cifar10Network_t *tst_net = new Cifar10Network_t("tst_net", main_gpu_id);
-	tst_net->BuildNet(tst_batch_size, "");
+	AlexNetwork_t *tst_net = new AlexNetwork_t("tst_net", main_gpu_id);
+	tst_net->BuildNet(batch_size, false, "");
 	// tst_net->SaveNetParams(0);
 
-	vector<Cifar10Network_t *> trn_nets(gpus.size());
+	vector<AlexNetwork_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
 	vector<Blob_t *> batch_labels_slices(gpus.size());
 	vector<int> batch_sizes(gpus.size());
@@ -164,9 +182,9 @@ int main(int argc, char **argv) {
 	{
 		LOG(INFO) << "gpu[" <<  gpus[i] << "]:\n";
 		cudaSetDevice(main_gpu_id);
-		batch_sizes[i] = trn_batch_size / gpus.size();
-		trn_nets[i] = new Cifar10Network_t(string("trn_nets_"+i), gpus[i]);
-		trn_nets[i]->BuildNet(batch_sizes[i], "");
+		batch_sizes[i] = batch_size / gpus.size();
+		trn_nets[i] = new AlexNetwork_t(string("trn_nets_"+i), gpus[i]);
+		trn_nets[i]->BuildNet(batch_sizes[i], true, "");
 
 		batch_samples_slices[i] = trn_nets[i]->batch_samples;
 		batch_labels_slices[i] = trn_nets[i]->batch_labels;
@@ -192,18 +210,29 @@ int main(int argc, char **argv) {
 		thread_data[i].batch_labels = batch_labels_slices[i];
 	}
 
-	int num_tst_iters = ceil(10000 / tst_batch_size);
-	int num_trn_iters = ceil(50000 / trn_batch_size);
+	int num_tst_iters = ceil(50000 / batch_size);
+	int num_trn_iters = ceil(1281167 / batch_size);
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 
 		// testing net
-		float tst_loss = 0.0f, tst_loss_batch = 0.0f;
-		float tst_acc  = 0.0f, tst_acc_batch  = 0.0f;
+		tst_loss = 0.0f;
+		tst_acc  = 0.0f;
+		// copy trn_net params into trn_nets_i
+		for(int i = 0; i < gpus.size(); i++) {
+			trn_nets[i]->CopyNetParamsFrom(tst_net);
+		}
 		for(int iter = 0; iter < num_tst_iters; iter++) {
-			tst_data_layer->Forward_to_Network(tst_net->batch_samples, tst_net->batch_labels);
-			tst_net->Forward(&tst_loss_batch, &tst_acc_batch);
-			tst_loss += tst_loss_batch;
-			tst_acc  += tst_acc_batch;
+			tst_data_layer->Forward_to_Network_multi(gpus, batch_sizes, batch_samples_slices, batch_labels_slices);
+
+			for(int i = 0; i < gpus.size(); i++) {
+				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))thread_func_fw, (void*)(&(thread_data[i])));
+			}
+
+			for(int i = 0; i < gpus.size(); i++) {
+				ret_count = pthread_join(threads[i], NULL);
+			}
+
+			cudaDeviceSynchronize();
 		}
 		tst_loss /= num_tst_iters;
 		tst_acc  /= num_tst_iters;
@@ -221,7 +250,7 @@ int main(int argc, char **argv) {
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
-				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))thread_func, (void*)(&(thread_data[i])));
+				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))thread_func_fwbp, (void*)(&(thread_data[i])));
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
@@ -281,6 +310,5 @@ int main(int argc, char **argv) {
 	ret_count = pthread_attr_destroy(&pta);
 	free(threads); threads = NULL;
 	cudaDeviceReset();
-	exit(EXIT_SUCCESS);
+	return 0;
 }
-
