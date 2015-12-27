@@ -10,6 +10,12 @@ using namespace std;
 
 #include "myproto.pb.h"
 
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/imgproc/imgproc.hpp>
+using namespace cv;
+
 #define HDF5_NUM_DIMS 4
 
 using ::google::protobuf::Message;
