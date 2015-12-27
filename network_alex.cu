@@ -659,6 +659,11 @@ void AlexNetwork_t::BuildNet(int batch_size_, bool is_allocate_top_mem_, const s
 }
 
 void AlexNetwork_t::Forward(float *loss, float *accuracy) {
+
+	if(!is_allocate_top_mem) {
+		return;
+	}
+
 	cudaSetDevice(gpu_id);
 
 	conv1->Forward(batch_samples, conv1_top);
@@ -704,6 +709,11 @@ void AlexNetwork_t::Forward(float *loss, float *accuracy) {
 }
 
 void AlexNetwork_t::Backward() {
+
+	if(!is_allocate_top_mem) {
+		return;
+	}
+
 	cudaSetDevice(gpu_id);
 
 	sml1->Backward(sml1_top, batch_labels, fc8_top);
@@ -740,6 +750,11 @@ void AlexNetwork_t::Backward() {
 }
 
 void AlexNetwork_t::ForwardBackward(float *loss, float *accuracy) {
+
+	if(!is_allocate_top_mem) {
+		return;
+	}
+
 	Forward(loss, accuracy);
 	Backward();
 }
