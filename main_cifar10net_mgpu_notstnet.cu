@@ -235,8 +235,8 @@ int main(int argc, char **argv) {
 
 			cudaDeviceSynchronize();
 		}
-		tst_loss /= num_tst_iters;
-		tst_acc  /= num_tst_iters;
+		tst_loss /= num_tst_iters * gpus.size();
+		tst_acc  /= num_tst_iters * gpus.size();
 		LOG(INFO) << "epoch[" << epoch << "]: tst_loss=" << tst_loss << ", tst_acc=" << tst_acc << "\n";
 
 		// training net
@@ -281,8 +281,8 @@ int main(int argc, char **argv) {
 				// tst_net->SaveNetParams(epoch);
 			}
 		}
-		trn_loss /= num_trn_iters;
-		trn_acc  /= num_trn_iters;
+		trn_loss /= num_trn_iters * gpus.size();
+		trn_acc  /= num_trn_iters * gpus.size();
 		LOG(INFO) << "epoch[" << epoch << "]: trn_loss=" << trn_loss << ", trn_acc=" << trn_acc << "\n";
 	}
 
