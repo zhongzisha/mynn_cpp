@@ -3,7 +3,7 @@
 #include <algorithm>
 using namespace std;
 
-void ActivationLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void ActivationLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	CUDNN_CHECK( cudnnSetTensor4dDescriptor(bottomTensorDesc,
 			tensorFormat,
 			dataType,
@@ -25,8 +25,10 @@ void ActivationLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
 			top->H,
 			top->W) );
 
-	top->allocate_gpu_data();
-	top->allocate_gpu_diff();
+	if(is_allocate_top_mem) {
+		top->allocate_gpu_data();
+		top->allocate_gpu_diff();
+	}
 }
 
 void ActivationLayer_t::Forward(const Blob_t *bottom, Blob_t *top) {
@@ -60,7 +62,7 @@ void ActivationLayer_t::Backward(const Blob_t *top, Blob_t *bottom) {
 }
 
 
-void PoolingLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void PoolingLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	CUDNN_CHECK( cudnnSetPooling2dDescriptor(poolingDesc,
 			cudnn_pooling_params->cudnn_pooling_mode,
 			cudnn_pooling_params->poolsize_h, // window
@@ -97,8 +99,10 @@ void PoolingLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
 			top->H,
 			top->W) );
 
-	top->allocate_gpu_data();
-	top->allocate_gpu_diff();
+	if(is_allocate_top_mem) {
+		top->allocate_gpu_data();
+		top->allocate_gpu_diff();
+	}
 }
 
 void PoolingLayer_t::Forward(const Blob_t *bottom, Blob_t *top) {
@@ -155,7 +159,7 @@ FullyConnectedLayer_t::~FullyConnectedLayer_t() {
 	CUBLAS_CHECK( cublasDestroy(cublashandle) );
 }
 
-void FullyConnectedLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void FullyConnectedLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	N_ = fc_params->hidden_size;
 	K_ = bottom->C * bottom->H * bottom->W;
 	M_ = bottom->N;
@@ -176,8 +180,11 @@ void FullyConnectedLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
 	top->C = N_;
 	top->H = 1;
 	top->W = 1;
-	top->allocate_gpu_data();
-	top->allocate_gpu_diff();
+
+	if(is_allocate_top_mem) {
+		top->allocate_gpu_data();
+		top->allocate_gpu_diff();
+	}
 
 }
 
@@ -203,7 +210,7 @@ void FullyConnectedLayer_t::Backward(const Blob_t *top, Blob_t *bottom) {
 
 
 
-void SoftmaxLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void SoftmaxLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	CUDNN_CHECK( cudnnSetTensor4dDescriptor(bottomTensorDesc,
 			tensorFormat,
 			dataType,
@@ -224,8 +231,10 @@ void SoftmaxLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
 			top->H,
 			top->W) );
 
-	top->allocate_gpu_data();
-	top->allocate_gpu_diff();
+	if (is_allocate_top_mem) {
+		top->allocate_gpu_data();
+		top->allocate_gpu_diff();
+	}
 }
 
 void SoftmaxLayer_t::Forward(const Blob_t *bottom, Blob_t *top) {
@@ -259,13 +268,15 @@ void SoftmaxLayer_t::Backward(const Blob_t *top, Blob_t *bottom) {
 			bottom->diff_gpu) );
 }
 
-void ArgMaxLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void ArgMaxLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	top->N = bottom->N;
 	top->C = 2;
 	top->H = argmax_params->top_k;
 	top->W = 1;
 
-	top->allocate_cpu_data();
+	if(is_allocate_top_mem) {
+		top->allocate_cpu_data();
+	}
 }
 
 void ArgMaxLayer_t::Forward_cpu(Blob_t *bottom, Blob_t *top) {
@@ -299,13 +310,15 @@ void ArgMaxLayer_t::Forward_cpu(Blob_t *bottom, Blob_t *top) {
 
 
 
-void AccuracyLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void AccuracyLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	top->N = 1;
 	top->C = 1;
 	top->H = 1;
 	top->W = 1;
 
-	top->allocate_cpu_data();
+	if(is_allocate_top_mem) {
+		top->allocate_cpu_data();
+	}
 }
 
 void AccuracyLayer_t::Forward_cpu(Blob_t *bottom, Blob_t *label, Blob_t *top) {

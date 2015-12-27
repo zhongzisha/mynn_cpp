@@ -46,7 +46,7 @@ __global__ void SoftmaxLossBackwardGPU(const int nthreads, const float* top,
 	}
 }
 
-void SoftmaxWithLossLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void SoftmaxWithLossLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	CUDNN_CHECK( cudnnSetTensor4dDescriptor(bottomTensorDesc,
 			tensorFormat,
 			dataType,
@@ -68,8 +68,10 @@ void SoftmaxWithLossLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
 			prob_->H,
 			prob_->W) );
 
-	prob_->allocate_gpu_data();
-	prob_->allocate_gpu_diff();
+	if (is_allocate_top_mem) {
+		prob_->allocate_gpu_data();
+		prob_->allocate_gpu_diff();
+	}
 
 	if(cudnn_softmaxwithloss_params->has_ignore_label)
 		has_ignore_label_ = cudnn_softmaxwithloss_params->has_ignore_label;
@@ -163,14 +165,16 @@ void SoftmaxWithLossLayer_t::Backward(const Blob_t *top, const Blob_t *label, Bl
 }
 
 
-void MultinomialLogisticLossLayer_t::Setup(const Blob_t *bottom, Blob_t *top) {
+void MultinomialLogisticLossLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem) {
 	top->N = 1;
 	top->C = 1;
 	top->H = 1;
 	top->W = 1;
-	top->allocate_cpu_data();
-	top->allocate_cpu_diff();
-	top->data_cpu[0] = 1.0f;
+	if(is_allocate_top_mem) {
+		top->allocate_cpu_data();
+		top->allocate_cpu_diff();
+		top->data_cpu[0] = 1.0f;
+	}
 }
 
 void MultinomialLogisticLossLayer_t::Forward(const Blob_t *bottom, const Blob_t *label, Blob_t *top) {

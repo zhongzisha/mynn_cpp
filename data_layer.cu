@@ -197,7 +197,6 @@ void DataLayer_t::InternalThreadEntry(){
 
 	float *top_data = prefetch_data_->data_cpu;
 	float *top_label = prefetch_label_->data_cpu;
-	float *mean_data = mean_->data_cpu;
 	for (int item_id = 0; item_id < data_params->batch_size; ++item_id) {
 
 		// get a blob

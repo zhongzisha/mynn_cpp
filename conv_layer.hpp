@@ -47,7 +47,7 @@ public:
 	~ConvolutionLayer_t();
 
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, Blob_t *top);
 
@@ -105,7 +105,7 @@ public:
 	~ConvolutionWithGroupLayer_t();
 
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, Blob_t *top);
 

@@ -29,7 +29,7 @@ ConvolutionLayer_t::~ConvolutionLayer_t()
 }
 
 
-void ConvolutionLayer_t::Setup(const Blob_t *bottom, Blob_t *top)
+void ConvolutionLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem)
 {
 
 	CUDNN_CHECK( cudnnSetTensor4dDescriptor(bottomTensorDesc,
@@ -82,8 +82,10 @@ void ConvolutionLayer_t::Setup(const Blob_t *bottom, Blob_t *top)
 			1,
 			1) );
 
-	top->allocate_gpu_data();
-	top->allocate_gpu_diff();
+	if (is_allocate_top_mem) {
+		top->allocate_gpu_data();
+		top->allocate_gpu_diff();
+	}
 }
 
 void ConvolutionLayer_t::Forward(const Blob_t *bottom, Blob_t *top)
@@ -149,7 +151,7 @@ void ConvolutionLayer_t::Backward(const Blob_t *top, Blob_t *bottom)
 {
 
 	float alpha = (float)1.0f;
-	float beta = (float)0.0f;
+	float beta = (float)1.0f;
 	CUDNN_CHECK(cudnnConvolutionBackwardBias(cudnnHandle,
 			&alpha,
 			topTensorDesc,
@@ -158,6 +160,8 @@ void ConvolutionLayer_t::Backward(const Blob_t *top, Blob_t *bottom)
 			biasTensorDesc,
 			biasBlob->diff_gpu));
 
+	alpha = (float)1.0f;
+	beta = (float)1.0f;
 	CUDNN_CHECK(cudnnConvolutionBackwardFilter(cudnnHandle,
 			&alpha,
 			bottomTensorDesc,
@@ -169,6 +173,8 @@ void ConvolutionLayer_t::Backward(const Blob_t *top, Blob_t *bottom)
 			filterDesc,
 			filtersBlob->diff_gpu));
 
+	alpha = (float)1.0f;
+	beta = (float)0.0f;
 	CUDNN_CHECK(cudnnConvolutionBackwardData(cudnnHandle,
 			&alpha,
 			filterDesc,
@@ -247,7 +253,7 @@ ConvolutionWithGroupLayer_t::~ConvolutionWithGroupLayer_t()
 }
 
 
-void ConvolutionWithGroupLayer_t::Setup(const Blob_t *bottom, Blob_t *top)
+void ConvolutionWithGroupLayer_t::Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem)
 {
 
 	//		// Set the indexing parameters.
@@ -255,27 +261,26 @@ void ConvolutionWithGroupLayer_t::Setup(const Blob_t *bottom, Blob_t *top)
 	//		    		  * (this->channels_ / this->group_) * this->kernel_h_ * this->kernel_w_;
 	//		bias_offset_ = (this->num_output_ / this->group_);
 	// Set the indexing parameters.
-	// printf("get weight_offset_ and bias_offst_\n");
 	weight_offset_ = (convwithgroup_params->filter_C / convwithgroup_params->group)
-		    				  * (convwithgroup_params->filter_N / convwithgroup_params->group)
-		    				  * convwithgroup_params->filter_H * convwithgroup_params->filter_W;
-	bias_offset_ = (convwithgroup_params->filter_C / convwithgroup_params->group);
-	// printf("get weight_offset_ and bias_offst_(%d, %d)\n", weight_offset_, bias_offset_);
+		    	   * (convwithgroup_params->filter_N / convwithgroup_params->group)
+		    	   *  convwithgroup_params->filter_H * convwithgroup_params->filter_W;
+	bias_offset_ =   (convwithgroup_params->filter_C / convwithgroup_params->group);
 
-	// printf("create bottomTensorDesc\n");
-	CUDNN_CHECK( cudnnSetTensor4dDescriptor(bottomTensorDesc,
-			tensorFormat,
+	CUDNN_CHECK( cudnnSetTensor4dDescriptorEx(bottomTensorDesc,
 			dataType,
 			bottom->N,
 			bottom->C / convwithgroup_params->group,
 			bottom->H,
-			bottom->W) );
+			bottom->W,
+			bottom->C * bottom->H * bottom->W,
+			bottom->H * bottom->W,
+			bottom->W,
+			1) );
 
-	// printf("create filterDesc\n");
 	CUDNN_CHECK( cudnnSetFilter4dDescriptor(filterDesc,
 			dataType,
 			filtersBlob->C / convwithgroup_params->group,
-			bottom->C / convwithgroup_params->group,
+			filtersBlob->N / convwithgroup_params->group,
 			filtersBlob->H,
 			filtersBlob->W) );
 
@@ -290,7 +295,6 @@ void ConvolutionWithGroupLayer_t::Setup(const Blob_t *bottom, Blob_t *top)
 			convwithgroup_params->upscale_w,
 			convwithgroup_params->cudnn_conv_mode) );
 
-	// printf("get top shape\n");
 	// find dimension of convolution output
 	CUDNN_CHECK( cudnnGetConvolution2dForwardOutputDim(convDesc,
 			bottomTensorDesc,
@@ -299,40 +303,38 @@ void ConvolutionWithGroupLayer_t::Setup(const Blob_t *bottom, Blob_t *top)
 			&(top->C),
 			&(top->H),
 			&(top->W)) );
+	top->N = bottom->N;
 	top->C = filtersBlob->C;
-	// printf("get top shape (%d, %d, %d, %d)\n", top->N, top->C, top->H, top->W);
 
-	// printf("create topTensorDesc\n");
-	CUDNN_CHECK( cudnnSetTensor4dDescriptor(topTensorDesc,
-			tensorFormat,
+	CUDNN_CHECK( cudnnSetTensor4dDescriptorEx(topTensorDesc,
 			dataType,
 			top->N,
-			top->C,
+			filtersBlob->C / convwithgroup_params->group,
 			top->H,
-			top->W) );
+			top->W,
+			top->C * top->H * top->W,
+			top->H * top->W,
+			top->W,
+			1) );
 
-	// printf("create biasTensorDesc\n");
 	// add bias
 	CUDNN_CHECK( cudnnSetTensor4dDescriptor(biasTensorDesc,
 			tensorFormat,
 			dataType,
 			1,
-			top->C,
+			filtersBlob->C / convwithgroup_params->group,
 			1,
 			1) );
 
-	top->allocate_gpu_data();
-	top->allocate_gpu_diff();
+	if(is_allocate_top_mem) {
+		top->allocate_gpu_data();
+		top->allocate_gpu_diff();
+	}
 
-	//		bottom_offset_ = (this->channels_ / this->group_)
-	//		    		  * this->height_ * this->width_;
-	//		top_offset_ = (this->num_output_ / this->group_)
-	//		    		  * this->height_out_ * this->width_out_;
-	// printf("get bottom_offset_ and top_offset_\n");
-	bottom_offset_ = (bottom->C / convwithgroup_params->group)
-		    				  * bottom->H * bottom->W;
-	top_offset_ = (top->C / convwithgroup_params->group)
-		    				  * top->H * top->W;
+	//		bottom_offset_ = (this->channels_ / this->group_) * this->height_ * this->width_;
+	//		top_offset_    = (this->num_output_ / this->group_) * this->height_out_ * this->width_out_;
+	bottom_offset_ = (bottom->C / convwithgroup_params->group) * bottom->H * bottom->W;
+	top_offset_ = (top->C / convwithgroup_params->group) * top->H * top->W;
 }
 
 void ConvolutionWithGroupLayer_t::Forward(const Blob_t *bottom, Blob_t *top)
@@ -365,6 +367,7 @@ void ConvolutionWithGroupLayer_t::Forward(const Blob_t *bottom, Blob_t *top)
 		{
 			CUDA_CHECK( cudaMalloc(&workSpace,sizeInBytes) );
 		}
+
 		float alpha = float(1);
 		float beta  = float(0);
 		CUDNN_CHECK( cudnnConvolutionForward(handle_[g],
@@ -406,9 +409,8 @@ void ConvolutionWithGroupLayer_t::Forward(const Blob_t *bottom, Blob_t *top)
 
 void ConvolutionWithGroupLayer_t::Backward(const Blob_t *top, Blob_t *bottom)
 {
-
-	float alpha = (float)1.0f;
-	float beta = (float)0.0f;
+	float alpha = 0.0f;
+	float beta  = 0.0f;
 	float *weight = filtersBlob->data_gpu;
 	float *weight_diff = filtersBlob->diff_gpu;
 	gpu_set(filtersBlob->count(), float(0), weight_diff);
@@ -418,6 +420,8 @@ void ConvolutionWithGroupLayer_t::Backward(const Blob_t *top, Blob_t *bottom)
 	const float* bottom_data = bottom->data_gpu;
 	float* bottom_diff = bottom->diff_gpu;
 	for(int g = 0; g < convwithgroup_params->group; g++) {
+		alpha = (float)1.0f;
+		beta = (float)1.0f;
 		CUDNN_CHECK(cudnnConvolutionBackwardBias(handle_[0 * convwithgroup_params->group + g],
 				&alpha,
 				topTensorDesc,
@@ -426,6 +430,8 @@ void ConvolutionWithGroupLayer_t::Backward(const Blob_t *top, Blob_t *bottom)
 				biasTensorDesc,
 				bias_diff + bias_offset_ * g));
 
+		alpha = (float)1.0f;
+		beta = (float)1.0f;
 		CUDNN_CHECK(cudnnConvolutionBackwardFilter(handle_[1 * convwithgroup_params->group + g],
 				&alpha,
 				bottomTensorDesc,
@@ -437,6 +443,8 @@ void ConvolutionWithGroupLayer_t::Backward(const Blob_t *top, Blob_t *bottom)
 				filterDesc,
 				weight_diff + weight_offset_ * g));
 
+		alpha = (float)1.0f;
+		beta = (float)0.0f;
 		CUDNN_CHECK(cudnnConvolutionBackwardData(handle_[2 * convwithgroup_params->group + g],
 				&alpha,
 				filterDesc,

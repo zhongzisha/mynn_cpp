@@ -61,7 +61,7 @@ public:
 		CUBLAS_CHECK( cublasDestroy(cublashandle) );
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, const Blob_t *label, Blob_t *top, float *loss);
 
@@ -89,7 +89,7 @@ public:
 
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, const Blob_t *label, Blob_t *top);
 

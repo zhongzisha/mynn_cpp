@@ -38,7 +38,7 @@ public:
 		CUDNN_CHECK( cudnnDestroy(cudnnHandle) );
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top) {};
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true) {};
 	void Forward(const Blob_t *bottom, Blob_t *top) {};
 	void Backward(const Blob_t *top, Blob_t *bottom) {};
 };
@@ -62,7 +62,7 @@ public:
 
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, Blob_t *top);
 
@@ -97,7 +97,7 @@ public:
 		CUDNN_CHECK( cudnnDestroyPoolingDescriptor(poolingDesc) );
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, Blob_t *top);
 
@@ -129,7 +129,7 @@ public:
 
 	~FullyConnectedLayer_t();
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, Blob_t *top);
 
@@ -155,7 +155,7 @@ public:
 
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward(const Blob_t *bottom, Blob_t *top);
 
@@ -181,7 +181,7 @@ public:
 
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward_cpu(Blob_t *bottom, Blob_t *top);
 };
@@ -204,7 +204,7 @@ public:
 
 	}
 
-	void Setup(const Blob_t *bottom, Blob_t *top);
+	void Setup(const Blob_t *bottom, Blob_t *top, bool is_allocate_top_mem = true);
 
 	void Forward_cpu(Blob_t *bottom, Blob_t *label, Blob_t *top);
 };

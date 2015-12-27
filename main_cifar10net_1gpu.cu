@@ -7,7 +7,6 @@
 #include "conv_layer.hpp"
 #include "loss_layer.hpp"
 #include "network_cifar10.hpp"
-#include "network_alex.hpp"
 
 int main(int argc, char **argv) {
 	if(argc != 12) {
@@ -34,6 +33,10 @@ int main(int argc, char **argv) {
 	trn_data_param->source = trn_db_filename;
 	trn_data_param->mean_file = mean_file;
 	trn_data_param->crop_size = 0;
+	trn_data_param->scale = 1.0f;
+	trn_data_param->mirror = true;
+	trn_data_param->has_mean_file = true;
+	trn_data_param->phase = "train";
 	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
 	trn_data_layer->Setup();
 
@@ -43,6 +46,10 @@ int main(int argc, char **argv) {
 	tst_data_param->source = tst_db_filename;
 	tst_data_param->mean_file = mean_file;
 	tst_data_param->crop_size = 0;
+	tst_data_param->scale = 1.0f;
+	tst_data_param->mirror = false;
+	tst_data_param->has_mean_file = true;
+	tst_data_param->phase = "test";
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
