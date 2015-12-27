@@ -291,7 +291,7 @@ void AlexNetwork_t::BuildNet(int batch_size_, bool is_allocate_top_mem_, const s
 	conv2g_top = new Blob_t();
 	conv2g_params = new ConvolutionWithGroupParameter_t();
 	conv2g_params->group = 2;
-	conv2g_params->filter_N = 32;
+	conv2g_params->filter_N = 96;
 	conv2g_params->filter_C = 256;
 	conv2g_params->filter_H = 5;
 	conv2g_params->filter_W = 5;
