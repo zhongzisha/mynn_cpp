@@ -16,15 +16,6 @@ using namespace std;
 #include <boost/filesystem.hpp>
 using namespace boost;
 
-#include <cublas_v2.h>
-#include <cudnn.h>
-#include <curand.h>
-
-extern "C" {
-#include <cblas.h>
-}
-
-
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/highgui/highgui_c.h>

@@ -115,8 +115,7 @@ public:
 
 	void ForwardBackward(float *loss, float *accuracy);
 
-	void ComputeUpdateValueSingle(Blob_t *param_gradient_blob, Blob_t *param_blob_old,
-			float lr_rate, float momentum, float weight_decay);
+	void ComputeUpdateValueSingle(Blob_t *param_gradient_blob, Blob_t *param_blob_old, float lr_rate, float momentum, float weight_decay);
 
 	void ComputeUpdateValue(float lr_rate, float momentum, float weight_decay);
 
