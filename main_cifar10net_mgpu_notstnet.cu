@@ -62,7 +62,7 @@ void thread_func_fwbw(void *data_)
 
 	pthread_mutex_lock(&mutex_trn);
 	trn_loss += trn_loss_batch;
-	trn_acc  += trn_loss_batch;
+	trn_acc  += trn_acc_batch;
 	pthread_mutex_unlock(&mutex_trn);
 
 	pthread_barrier_wait(&barr);
@@ -82,7 +82,7 @@ void thread_func_fw(void *data_)
 
 	pthread_mutex_lock(&mutex_tst);
 	tst_loss += tst_loss_batch;
-	tst_acc  += tst_loss_batch;
+	tst_acc  += tst_acc_batch;
 	pthread_mutex_unlock(&mutex_tst);
 
 	pthread_barrier_wait(&barr);
@@ -222,7 +222,7 @@ int main(int argc, char **argv) {
 		for(int i = 0; i < gpus.size(); i++) {
 			trn_nets[i]->CopyNetParamsFrom(tst_net);
 		}
-		for(int iter = 0; iter < num_trn_iters; iter++) {
+		for(int iter = 0; iter < num_tst_iters; iter++) {
 			tst_data_layer->Forward_to_Network_multi(gpus, batch_sizes, batch_samples_slices, batch_labels_slices);
 
 			for(int i = 0; i < gpus.size(); i++) {

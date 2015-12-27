@@ -49,7 +49,7 @@ public:
 pthread_mutex_t mutex_trn = PTHREAD_MUTEX_INITIALIZER;
 float trn_loss = 0.0f;
 float trn_acc  = 0.0f;
-void thread_func_fwbp(void *data_)
+void thread_func_fwbw(void *data_)
 {
 	thread_data_t *data = (thread_data_t *)data_;
 	cudaSetDevice(data->net_gpu_id);
@@ -62,7 +62,7 @@ void thread_func_fwbp(void *data_)
 
 	pthread_mutex_lock(&mutex_trn);
 	trn_loss += trn_loss_batch;
-	trn_acc  += trn_loss_batch;
+	trn_acc  += trn_acc_batch;
 	pthread_mutex_unlock(&mutex_trn);
 
 	pthread_barrier_wait(&barr);
@@ -82,7 +82,7 @@ void thread_func_fw(void *data_)
 
 	pthread_mutex_lock(&mutex_tst);
 	tst_loss += tst_loss_batch;
-	tst_acc  += tst_loss_batch;
+	tst_acc  += tst_acc_batch;
 	pthread_mutex_unlock(&mutex_tst);
 
 	pthread_barrier_wait(&barr);
@@ -164,7 +164,7 @@ int main(int argc, char **argv) {
 
 	cudaSetDevice(main_gpu_id);
 	AlexNetwork_t *tst_net = new AlexNetwork_t("tst_net", main_gpu_id);
-	tst_net->BuildNet(batch_size, false, "");
+	tst_net->BuildNet(batch_size, false, ""); // this network just save net params and update net params
 	// tst_net->SaveNetParams(0);
 
 	vector<AlexNetwork_t *> trn_nets(gpus.size());
@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
-				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))thread_func_fwbp, (void*)(&(thread_data[i])));
+				ret_count = pthread_create(&(threads[i]), &pta, (void*(*)(void*))thread_func_fwbw, (void*)(&(thread_data[i])));
 			}
 
 			for(int i = 0; i < gpus.size(); i++) {
