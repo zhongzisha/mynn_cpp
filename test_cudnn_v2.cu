@@ -915,7 +915,6 @@ int main_test_conv_wigh_group_seems_ok(int argc, char **argv) {
 	return 0;
 }
 
-
 // test alex net
 int main_alex_net_single_gpu(int argc, char **argv) {
 	if(argc != 14) {
@@ -1234,9 +1233,3 @@ int main_alexnet_multi_gpu(int argc, char **argv) {
 	return 0;
 }
 
-int main(int argc, char **argv) {
-	// main_cifar10_multi_gpu_ok(argc, argv);
-	main_alex_net_single_gpu(argc, argv);
-	// main_alexnet_multi_gpu(argc, argv);
-	return 0;
-}
