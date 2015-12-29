@@ -2,6 +2,8 @@
 *~
 results_*
 *_lmdb/
+*_leveldb/
+*_rocksdb/
 *.binaryproto
 .project
 .cproject

@@ -7,7 +7,7 @@
 void DataLayer_t::Setup() {
 	// Initialize DB
 	db_.reset(db::GetDB(data_params->backend));
-	db_->Open(data_params->source, db::READ);
+	db_->OpenForReadOnly(data_params->source, db::READ);
 	cursor_.reset(db_->NewCursor());
 
 	// Read a data point, and use it to initialize the top blob.
@@ -65,6 +65,18 @@ void DataLayer_t::Setup() {
 	}
 
 	CreatePrefetchThread();
+}
+
+void DataLayer_t::SetCursor(const string& key_str) {
+	if(data_params->backend != "rocksdb") {
+		return;
+	}
+	if (db_ == NULL) {
+		db_.reset(db::GetDB(data_params->backend));
+		db_->Open(data_params->source, db::READ);
+		cursor_.reset(db_->NewCursor());
+	}
+	cursor_->Seek(key_str);
 }
 
 void DataLayer_t::Forward_cpu(Blob_t *top_data, Blob_t *top_label) {

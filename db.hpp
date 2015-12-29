@@ -28,6 +28,7 @@ class Cursor {
   Cursor() { }
   virtual ~Cursor() { }
   virtual void SeekToFirst() = 0;
+  virtual void Seek(const string &key_str) = 0;
   virtual void Next() = 0;
   virtual string key() = 0;
   virtual string value() = 0;
@@ -51,6 +52,7 @@ class DB {
   DB() { }
   virtual ~DB() { }
   virtual void Open(const string& source, Mode mode) = 0;
+  virtual void OpenForReadOnly(const string& source, Mode mode) = 0;
   virtual void Close() = 0;
   virtual Cursor* NewCursor() = 0;
   virtual Transaction* NewTransaction() = 0;
@@ -64,6 +66,7 @@ class LevelDBCursor : public Cursor {
     : iter_(iter) { SeekToFirst(); }
   ~LevelDBCursor() { delete iter_; }
   virtual void SeekToFirst() { iter_->SeekToFirst(); }
+  virtual void Seek(const string &key_str) {};
   virtual void Next() { iter_->Next(); }
   virtual string key() { return iter_->key().ToString(); }
   virtual string value() { return iter_->value().ToString(); }
@@ -97,6 +100,7 @@ class LevelDB : public DB {
   LevelDB() : db_(NULL) { }
   virtual ~LevelDB() { Close(); }
   virtual void Open(const string& source, Mode mode);
+  virtual void OpenForReadOnly(const string& source, Mode mode);
   virtual void Close() {
     if (db_ != NULL) {
       delete db_;
@@ -122,6 +126,7 @@ class RocksDBCursor : public Cursor {
   ~RocksDBCursor() { delete iter_; }
   virtual void SeekToFirst() { iter_->SeekToFirst(); }
   virtual void Next() { iter_->Next(); }
+  virtual void Seek(const string &key_str) { rocksdb::Slice key = key_str; iter_->Seek(key);}
   virtual string key() { return iter_->key().ToString(); }
   virtual string value() { return iter_->value().ToString(); }
   virtual bool valid() { return iter_->Valid(); }
@@ -154,6 +159,7 @@ class RocksDB : public DB {
   RocksDB() : db_(NULL) { }
   virtual ~RocksDB() { Close(); }
   virtual void Open(const string& source, Mode mode);
+  virtual void OpenForReadOnly(const string& source, Mode mode);
   virtual void Close() {
     if (db_ != NULL) {
       delete db_;
@@ -188,6 +194,7 @@ class LMDBCursor : public Cursor {
     mdb_txn_abort(mdb_txn_);
   }
   virtual void SeekToFirst() { Seek(MDB_FIRST); }
+  virtual void Seek(const string &key_str) {};
   virtual void Next() { Seek(MDB_NEXT); }
   virtual string key() {
     return string(static_cast<const char*>(mdb_key_.mv_data), mdb_key_.mv_size);
@@ -234,6 +241,7 @@ class LMDB : public DB {
   LMDB() : mdb_env_(NULL) { }
   virtual ~LMDB() { Close(); }
   virtual void Open(const string& source, Mode mode);
+  virtual void OpenForReadOnly(const string& source, Mode mode);
   virtual void Close() {
     if (mdb_env_ != NULL) {
       mdb_dbi_close(mdb_env_, mdb_dbi_);

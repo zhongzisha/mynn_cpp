@@ -34,6 +34,7 @@ using namespace cv;
 #include "network_cifar10.hpp"
 #include "network_alex.hpp"
 
+/*
 pthread_barrier_t barr;
 struct cifar10_thread_data_t
 {
@@ -1287,8 +1288,37 @@ int test_hdf5_read_and_write(int argc, char **argv) {
 	CUBLAS_CHECK( cublasDestroy(cublas_handle) );
 	return 0;
 }
-
+*/
 int main(int argc, char **argv) {
+
+	string db_name = argv[1];
+	string key_pos = argv[2];
+	int batch_size = atoi(argv[3]);
+
+	boost::shared_ptr<db::DB> db_;
+	boost::shared_ptr<db::Cursor> cursor_;
+
+	// Initialize DB
+	db_.reset(db::GetDB("rocksdb"));
+	db_->Open(argv[1], db::READ);
+	cursor_.reset(db_->NewCursor());
+
+//	while(cursor_->valid()) {
+//		printf("%s\n", cursor_->key().c_str());
+//		cursor_->Next();
+//	}
+
+	cursor_->Seek(argv[2]);
+	if(!cursor_->valid())
+		cursor_->SeekToFirst();
+	int i = 0;
+	while(i < batch_size) {
+		printf("%s\n", cursor_->key().c_str());
+		cursor_->Next();
+		if(!cursor_->valid())
+			cursor_->SeekToFirst();
+		++i;
+	}
 
 	return 0;
 }

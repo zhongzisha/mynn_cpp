@@ -92,6 +92,8 @@ public:
 
 	void Setup();
 
+	void SetCursor(const string &key_str);
+
 	void Forward_cpu(Blob_t *top_data, Blob_t *top_label);
 
 	void Forward_to_Network(Blob_t *top_data, Blob_t *top_label);

@@ -21,7 +21,36 @@ void LevelDB::Open(const string& source, Mode mode) {
   LOG(INFO) << "Opened leveldb " << source;
 }
 
+void LevelDB::OpenForReadOnly(const string& source, Mode mode) {
+  leveldb::Options options;
+  options.block_size = 65536;
+  options.write_buffer_size = 268435456;
+  options.max_open_files = 100;
+  options.error_if_exists = mode == NEW;
+  options.create_if_missing = mode != READ;
+  leveldb::Status status = leveldb::DB::Open(options, source, &db_);
+  CHECK(status.ok()) << "Failed to open leveldb " << source
+                     << std::endl << status.ToString();
+  LOG(INFO) << "Opened leveldb " << source;
+}
+
 void RocksDB::Open(const string& source, Mode mode) {
+  rocksdb::LevelDBOptions options;
+  options.block_size = 65536;
+  options.write_buffer_size = 268435456;
+  options.max_open_files = 100;
+  options.error_if_exists = mode == NEW;
+  options.create_if_missing = mode != READ;
+
+  rocksdb::Options rocksdb_options = rocksdb::ConvertOptions(options);
+
+  rocksdb::Status status = rocksdb::DB::Open(rocksdb_options, source, &db_);
+  CHECK(status.ok()) << "Failed to open rocksdb " << source
+                     << std::endl << status.ToString();
+  LOG(INFO) << "Opened rocksdb " << source;
+}
+
+void RocksDB::OpenForReadOnly(const string& source, Mode mode) {
   rocksdb::LevelDBOptions options;
   options.block_size = 65536;
   options.write_buffer_size = 268435456;
@@ -38,6 +67,20 @@ void RocksDB::Open(const string& source, Mode mode) {
 }
 
 void LMDB::Open(const string& source, Mode mode) {
+  MDB_CHECK(mdb_env_create(&mdb_env_));
+  MDB_CHECK(mdb_env_set_mapsize(mdb_env_, LMDB_MAP_SIZE));
+  if (mode == NEW) {
+    CHECK_EQ(mkdir(source.c_str(), 0744), 0) << "mkdir " << source << "failed";
+  }
+  int flags = 0;
+  if (mode == READ) {
+    flags = MDB_RDONLY | MDB_NOTLS;
+  }
+  MDB_CHECK(mdb_env_open(mdb_env_, source.c_str(), flags, 0664));
+  LOG(INFO) << "Opened lmdb " << source;
+}
+
+void LMDB::OpenForReadOnly(const string& source, Mode mode) {
   MDB_CHECK(mdb_env_create(&mdb_env_));
   MDB_CHECK(mdb_env_set_mapsize(mdb_env_, LMDB_MAP_SIZE));
   if (mode == NEW) {
