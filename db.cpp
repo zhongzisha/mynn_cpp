@@ -31,7 +31,7 @@ void RocksDB::Open(const string& source, Mode mode) {
 
   rocksdb::Options rocksdb_options = rocksdb::ConvertOptions(options);
 
-  rocksdb::Status status = rocksdb::DB::Open(rocksdb_options, source, &db_);
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(rocksdb_options, source, &db_);
   CHECK(status.ok()) << "Failed to open rocksdb " << source
                      << std::endl << status.ToString();
   LOG(INFO) << "Opened rocksdb " << source;
