@@ -1,16 +1,6 @@
 
 #include "common.hpp"
 
-template <> enum matio_types matio_type_map<float>() { return MAT_T_SINGLE; }
-template <> enum matio_types matio_type_map<double>() { return MAT_T_DOUBLE; }
-template <> enum matio_types matio_type_map<int>() { return MAT_T_INT32; }
-template <> enum matio_types matio_type_map<unsigned int>() { return MAT_T_UINT32; }
-
-template <> enum matio_classes matio_class_map<float>() { return MAT_C_SINGLE; }
-template <> enum matio_classes matio_class_map<double>() { return MAT_C_DOUBLE; }
-template <> enum matio_classes matio_class_map<int>() { return MAT_C_INT32; }
-template <> enum matio_classes matio_class_map<unsigned int>() { return MAT_C_UINT32; }
-
 const char* curandGetErrorString(curandStatus_t error) {
 	switch (error) {
 	case CURAND_STATUS_SUCCESS:

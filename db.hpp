@@ -8,6 +8,11 @@ using namespace std;
 #include "leveldb/write_batch.h"
 #include "lmdb.h"
 
+#include "rocksdb/db.h"
+#include "rocksdb/utilities/leveldb_options.h"
+#include "rocksdb/write_batch.h"
+
+
 // Disable the copy and assignment operator for a class.
 #define DISABLE_COPY_AND_ASSIGN(classname) \
 private:\
@@ -109,6 +114,65 @@ class LevelDB : public DB {
   leveldb::DB* db_;
 };
 
+// for rocksdb
+class RocksDBCursor : public Cursor {
+ public:
+  explicit RocksDBCursor(rocksdb::Iterator* iter)
+    : iter_(iter) { SeekToFirst(); }
+  ~RocksDBCursor() { delete iter_; }
+  virtual void SeekToFirst() { iter_->SeekToFirst(); }
+  virtual void Next() { iter_->Next(); }
+  virtual string key() { return iter_->key().ToString(); }
+  virtual string value() { return iter_->value().ToString(); }
+  virtual bool valid() { return iter_->Valid(); }
+
+ private:
+  rocksdb::Iterator* iter_;
+};
+
+class RocksDBTransaction : public Transaction {
+ public:
+  explicit RocksDBTransaction(rocksdb::DB* db) : db_(db) { CHECK_NOTNULL(db_); }
+  virtual void Put(const string& key, const string& value) {
+    batch_.Put(key, value);
+  }
+  virtual void Commit() {
+    rocksdb::Status status = db_->Write(rocksdb::WriteOptions(), &batch_);
+    CHECK(status.ok()) << "Failed to write batch to rocksdb "
+                       << std::endl << status.ToString();
+  }
+
+ private:
+  rocksdb::DB* db_;
+  rocksdb::WriteBatch batch_;
+
+  DISABLE_COPY_AND_ASSIGN(RocksDBTransaction);
+};
+
+class RocksDB : public DB {
+ public:
+  RocksDB() : db_(NULL) { }
+  virtual ~RocksDB() { Close(); }
+  virtual void Open(const string& source, Mode mode);
+  virtual void Close() {
+    if (db_ != NULL) {
+      delete db_;
+      db_ = NULL;
+    }
+  }
+  virtual RocksDBCursor* NewCursor() {
+    return new RocksDBCursor(db_->NewIterator(rocksdb::ReadOptions()));
+  }
+  virtual RocksDBTransaction* NewTransaction() {
+    return new RocksDBTransaction(db_);
+  }
+
+ private:
+  rocksdb::DB* db_;
+};
+
+
+// for LMDB
 inline void MDB_CHECK(int mdb_status) {
   CHECK_EQ(mdb_status, MDB_SUCCESS) << mdb_strerror(mdb_status);
 }

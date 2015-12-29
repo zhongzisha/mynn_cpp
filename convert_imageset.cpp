@@ -62,7 +62,7 @@ DEFINE_bool(gray, false,
 DEFINE_bool(shuffle, false,
 		"Randomly shuffle the order of images and their labels");
 DEFINE_string(backend, "lmdb",
-		"The backend {lmdb, leveldb} for storing the result");
+		"The backend {lmdb, leveldb, rocksdb} for storing the result");
 DEFINE_int32(resize_width, 0, "Width images are resized to");
 DEFINE_int32(resize_height, 0, "Height images are resized to");
 DEFINE_bool(check_size, false,

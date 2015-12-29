@@ -3,7 +3,7 @@
  Forward declare boost::thread instead of including boost/thread.hpp
  to avoid a boost/NVCC issues (#1009, #1010) on OSX.
  */
-using namespace boost;
+// using namespace boost;
 
 /**
  * Virtual class encapsulate boost::thread for use in base class
@@ -28,6 +28,6 @@ class InternalThread {
       with the code you want your thread to run. */
   virtual void InternalThreadEntry() {}
 
-  shared_ptr<boost::thread> thread_;
+  boost::shared_ptr<boost::thread> thread_;
 };
 

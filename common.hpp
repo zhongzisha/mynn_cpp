@@ -112,17 +112,6 @@ void gpu_gemm(cublasHandle_t cublashandle,
 void cpu_fill(float *ptr, int count, float value);
 void gpu_fill(curandGenerator_t curand_generator, float *ptr, int count, float mu, float std = 0.0f);
 
-template <typename Dtype> enum matio_types matio_type_map();
-template <> enum matio_types matio_type_map<float>() ;
-template <> enum matio_types matio_type_map<double>();
-template <> enum matio_types matio_type_map<int>() ;
-template <> enum matio_types matio_type_map<unsigned int>() ;
-
-template <typename Dtype> enum matio_classes matio_class_map();
-template <> enum matio_classes matio_class_map<float>() ;
-template <> enum matio_classes matio_class_map<double>() ;
-template <> enum matio_classes matio_class_map<int>() ;
-template <> enum matio_classes matio_class_map<unsigned int>() ;
 
 
 #endif /* COMMON_HPP_ */

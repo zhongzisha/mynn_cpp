@@ -63,7 +63,7 @@ void Blob_t::save_cpu_data_and_diff_to_mat(const char *fname, bool is_save_diff)
 	dims[3] = N;
 	matvar_t *matvar;
 	// save data
-	matvar = Mat_VarCreate("data", matio_class_map<float>(), matio_type_map<float>(), 4, dims, data_cpu, 0);
+	matvar = Mat_VarCreate("data", MAT_C_SINGLE, MAT_T_SINGLE, 4, dims, data_cpu, 0);
 	if(matvar == NULL)
 		LOG(FATAL) << "Error creating 'data' variable";
 	if(Mat_VarWrite(matfp, matvar, MAT_COMPRESSION_NONE) != 0)
@@ -75,7 +75,7 @@ void Blob_t::save_cpu_data_and_diff_to_mat(const char *fname, bool is_save_diff)
 		diff_to_cpu();
 
 		matvar_t *matvar2;
-		matvar2 = Mat_VarCreate("diff", matio_class_map<float>(), matio_type_map<float>(), 4, dims, diff_cpu, 0);
+		matvar2 = Mat_VarCreate("diff", MAT_C_SINGLE, MAT_T_SINGLE, 4, dims, diff_cpu, 0);
 		if(matvar2 == NULL)
 			LOG(FATAL) << "Error creating 'diff' variable";
 		if(Mat_VarWrite(matfp, matvar2, MAT_COMPRESSION_NONE) != 0)

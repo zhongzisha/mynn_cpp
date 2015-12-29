@@ -1237,8 +1237,7 @@ int main_alexnet_multi_gpu(int argc, char **argv) {
 }
 
 // test hdf5 io
-int main(int argc, char **argv) {
-
+int test_hdf5_read_and_write(int argc, char **argv) {
 
 	cudaStream_t curand_stream;
 	curandRngType_t curand_rngtype;
@@ -1286,5 +1285,10 @@ int main(int argc, char **argv) {
 	CURAND_CHECK( curandDestroyGenerator(curand_generator) );
 	CUDA_CHECK( cudaStreamDestroy(curand_stream) );
 	CUBLAS_CHECK( cublasDestroy(cublas_handle) );
+	return 0;
+}
+
+int main(int argc, char **argv) {
+
 	return 0;
 }
