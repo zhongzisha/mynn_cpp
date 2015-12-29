@@ -4,6 +4,19 @@ OUTDIR=./tools
 
 all: caffe
 
+convert_cifar_data:
+	g++ -std=c++11 \
+		-I${CUDA_ROOT}/include \
+		-I${GCC484_ROOT}/include \
+		myproto.pb.cc io.cpp db.cpp convert_cifar_data.cpp \
+		-L${CUDA_ROOT}/lib64 -L${CUDA_ROOT}/lib -lcudart -lcurand -lcublas -lcudnn \
+		-L${GCC484_ROOT}/lib64 -L${GCC484_ROOT}/lib \
+		-lprotobuf -lglog -lgflags -lopencv_core -lopencv_imgproc -lopencv_highgui \
+		-lleveldb -llmdb -lrocksdb \
+		-lmatio -lhdf5 -lhdf5_hl \
+		-lboost_thread -lboost_filesystem -lboost_system \
+		-o ${OUTDIR}/convert_cifar_data
+		
 convert_imageset:
 	g++ -std=c++11 \
 		-I${CUDA_ROOT}/include \
