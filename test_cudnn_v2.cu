@@ -22,6 +22,9 @@ using namespace boost;
 #include <opencv2/imgproc/imgproc.hpp>
 using namespace cv;
 
+#include "hdf5.h"
+#include "hdf5_hl.h"
+
 #include "common.hpp"
 #include "blob.hpp"
 #include "common_layer.hpp"
@@ -1233,3 +1236,55 @@ int main_alexnet_multi_gpu(int argc, char **argv) {
 	return 0;
 }
 
+// test hdf5 io
+int main(int argc, char **argv) {
+
+
+	cudaStream_t curand_stream;
+	curandRngType_t curand_rngtype;
+	curandGenerator_t curand_generator;
+	cublasHandle_t cublas_handle;
+	CUDA_CHECK( cudaStreamCreate(&curand_stream) );
+	curand_rngtype = CURAND_RNG_PSEUDO_DEFAULT;
+	CURAND_CHECK( curandCreateGenerator(&curand_generator, curand_rngtype) );
+	CURAND_CHECK( curandSetStream(curand_generator, curand_stream) );
+	CUBLAS_CHECK( cublasCreate(&cublas_handle) );
+
+	Blob_t *batch_samples = new Blob_t(16, 3, 227, 227);
+	Blob_t *batch_labels = new Blob_t(16, 1, 1, 1);
+	batch_samples->allocate_gpu_data();
+	batch_samples->allocate_gpu_diff();
+	batch_labels->allocate_gpu_data();
+	batch_labels->allocate_cpu_data();
+
+	CURAND_CHECK( curandGenerateNormal(curand_generator, batch_samples->data_gpu, batch_samples->count(), (float)0.0f, (float)0.1f) );
+	for(int i=0; i<batch_labels->count(); i++) {
+		batch_labels->data_cpu[i] = i%10;
+	}
+	batch_labels->data_to_gpu();
+
+	// write hdf5
+	batch_samples->data_to_cpu();
+
+	string file_name_ = "test.h5";
+	hid_t file_id_ = H5Fcreate(file_name_.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+	CHECK_GE(file_id_, 0) << "Failed to open HDF5 file" << file_name_;
+
+	const int data_datum_dim = batch_samples->count() / batch_samples->N;
+	const int label_datum_dim = batch_labels->count() / batch_labels->N;
+	LOG(INFO) << "Saving HDF5 file " << file_name_;
+	hdf5_save_nd_dataset(file_id_, "data", batch_samples);
+	hdf5_save_nd_dataset(file_id_, "label", batch_labels);
+	LOG(INFO) << "Successfully saved " << batch_samples->N << " rows";
+
+	herr_t status = H5Fclose(file_id_);
+	CHECK_GE(status, 0) << "Failed to close HDF5 file " << file_name_;
+
+	delete batch_samples;
+	delete batch_labels;
+
+	CURAND_CHECK( curandDestroyGenerator(curand_generator) );
+	CUDA_CHECK( cudaStreamDestroy(curand_stream) );
+	CUBLAS_CHECK( cublasDestroy(cublas_handle) );
+	return 0;
+}

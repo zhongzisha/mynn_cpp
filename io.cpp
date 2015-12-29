@@ -229,3 +229,47 @@ void CVMatToDatum(const cv::Mat& cv_img, Datum* datum) {
 }
 
 
+// Verifies format of data stored in HDF5 file and reshapes blob accordingly.
+void hdf5_load_nd_dataset_helper(hid_t file_id, const char* dataset_name_, int min_dim, int max_dim, Blob_t *blob) {
+  // Verify that the dataset exists.
+  CHECK(H5LTfind_dataset(file_id, dataset_name_))
+      << "Failed to find HDF5 dataset " << dataset_name_;
+  // Verify that the number of dimensions is in the accepted range.
+  herr_t status;
+  int ndims;
+  status = H5LTget_dataset_ndims(file_id, dataset_name_, &ndims);
+  CHECK_GE(status, 0) << "Failed to get dataset ndims for " << dataset_name_;
+  CHECK_GE(ndims, min_dim);
+  CHECK_LE(ndims, max_dim);
+
+  // Verify that the data format is what we expect: float or double.
+  std::vector<hsize_t> dims(ndims);
+  H5T_class_t class_;
+  status = H5LTget_dataset_info(
+      file_id, dataset_name_, dims.data(), &class_, NULL);
+  CHECK_GE(status, 0) << "Failed to get dataset info for " << dataset_name_;
+  CHECK_EQ(class_, H5T_FLOAT) << "Expected float or double data";
+
+  blob->N =  dims[0];
+  blob->C =  (dims.size() > 1) ? dims[1] : 1;
+  blob->H =  (dims.size() > 2) ? dims[2] : 1;
+  blob->W =  (dims.size() > 3) ? dims[3] : 1;
+}
+
+
+void hdf5_load_nd_dataset(hid_t file_id, const char* dataset_name_, int min_dim, int max_dim, Blob_t *blob) {
+  hdf5_load_nd_dataset_helper(file_id, dataset_name_, min_dim, max_dim, blob);
+  herr_t status = H5LTread_dataset_float(
+    file_id, dataset_name_, blob->data_cpu);
+  CHECK_GE(status, 0) << "Failed to read float dataset " << dataset_name_;
+}
+
+void hdf5_save_nd_dataset(const hid_t file_id, const string& dataset_name, const Blob_t *blob) {
+  hsize_t dims[HDF5_NUM_DIMS];
+  dims[0] = blob->N;
+  dims[1] = blob->C;
+  dims[2] = blob->H;
+  dims[3] = blob->W;
+  herr_t status = H5LTmake_dataset_float(file_id, dataset_name.c_str(), HDF5_NUM_DIMS, dims, blob->data_cpu);
+  CHECK_GE(status, 0) << "Failed to make float dataset " << dataset_name;
+}

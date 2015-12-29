@@ -9,6 +9,8 @@ using namespace std;
 #include "hdf5_hl.h"
 
 #include "myproto.pb.h"
+#include "common.hpp"
+#include "blob.hpp"
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -142,3 +144,8 @@ cv::Mat DecodeDatumToCVMat(const Datum& datum, bool is_color);
 
 void CVMatToDatum(const cv::Mat& cv_img, Datum* datum);
 
+void hdf5_load_nd_dataset_helper(hid_t file_id, const char* dataset_name_, int min_dim, int max_dim, Blob_t *blob);
+
+void hdf5_load_nd_dataset(hid_t file_id, const char* dataset_name_, int min_dim, int max_dim, Blob_t *blob);
+
+void hdf5_save_nd_dataset(const hid_t file_id, const string& dataset_name, const Blob_t *blob);

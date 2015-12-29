@@ -47,7 +47,7 @@ test:
 	-lleveldb -llmdb \
 	-lmatio -lhdf5 -lhdf5_hl \
 	-lboost_thread -lboost_filesystem -lboost_system \
-	-o ${OUTDIR}/caffe
+	-o ${OUTDIR}/test
 	
 main_cifar10net_1gpu:
 	protoc -I=./ --cpp_out=./ ./myproto.proto
