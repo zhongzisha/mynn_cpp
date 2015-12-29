@@ -52,8 +52,8 @@ public:
 	int top_datum_size_;
 
 	string phase;
-	shared_ptr<db::DB> db_;
-	shared_ptr<db::Cursor> cursor_;
+	boost::shared_ptr<db::DB> db_;
+	boost::shared_ptr<db::Cursor> cursor_;
 
 	DataLayer_t(const DataLayerParameter_t *data_params_) {
 		data_params = const_cast<DataLayerParameter_t *>(data_params_);
