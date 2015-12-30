@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
 			MPI_Status status;
 			int name_size;
 			printf("probe rank %d\n", rank);
-			MPI_Probe(0, name_tag, MPI_COMM_WORLD, &status);
+			MPI_Probe(rank, name_tag, MPI_COMM_WORLD, &status);
 			printf("get count rank %d\n", rank);
 			MPI_Get_count(&status, MPI_CHAR, &name_size);
 			char *message_buf = (char*)malloc(sizeof(char) * name_size);
