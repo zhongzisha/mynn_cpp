@@ -203,6 +203,8 @@ int main(int argc, char **argv) {
 
 	} else {
 
+		float local_lr_rate = lr_rate;
+
 		cudaSetDevice(main_gpu_id);
 
 		DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
@@ -293,7 +295,7 @@ int main(int argc, char **argv) {
 				slave_net->ForwardBackward(&trn_loss_batch, &trn_acc_batch);
 				trn_loss += trn_loss_batch;
 				trn_acc  += trn_acc_batch;
-				slave_net->ComputeUpdateValue(lr_rate, momentum, weight_decay);
+				slave_net->ComputeUpdateValue(local_lr_rate, momentum, weight_decay);
 				slave_net->UpdateNet();
 			}
 			trn_loss /= num_trn_iters;
@@ -307,7 +309,7 @@ int main(int argc, char **argv) {
 
 			// update learning rate
 			if((epoch != 0) && (epoch % lr_stepsize == 0)) {
-				lr_rate /= 10;
+				local_lr_rate /= 10;
 			}
 		}
 
