@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
 
 		// send the hostname to the master
 		stringstream ss;
-		ss << myname << "_" << cursor_->value() << "_" << message_buf;
+		ss << myname << "_" << "_" << message_buf;
 		char *ss_str = const_cast<char *>(ss.str().c_str());
 		int ss_str_len = strlen(ss_str);
 		MPI_Send(ss_str, ss_str_len, MPI_CHAR, 0, name_tag, MPI_COMM_WORLD);
