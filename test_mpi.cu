@@ -150,34 +150,39 @@ int main(int argc, char **argv) {
 
 		cudaSetDevice(main_gpu_id);
 
+		printf("build master_net.\n");
 		Cifar10Network_t *master_net = new Cifar10Network_t("master_net", main_gpu_id);
 		master_net->BuildNet(batch_size, false, "");
 
+		printf("get net params.\n");
 		vector<std::pair<float *, int> > net_params_buffers;
 		net_params_buffers.push_back(std::make_pair(master_net->conv1->filtersBlob->cpu_data(), master_net->conv1->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(master_net->conv1->biasBlob->cpu_data(), master_net->conv1->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(master_net->conv1->biasBlob->cpu_data(),    master_net->conv1->biasBlob->count()));
 		net_params_buffers.push_back(std::make_pair(master_net->conv2->filtersBlob->cpu_data(), master_net->conv2->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(master_net->conv2->biasBlob->cpu_data(), master_net->conv2->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(master_net->conv2->biasBlob->cpu_data(),    master_net->conv2->biasBlob->count()));
 		net_params_buffers.push_back(std::make_pair(master_net->conv3->filtersBlob->cpu_data(), master_net->conv3->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(master_net->conv3->biasBlob->cpu_data(), master_net->conv3->biasBlob->count()));
-		net_params_buffers.push_back(std::make_pair(master_net->ip1->filtersBlob->cpu_data(), master_net->ip1->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(master_net->ip1->biasBlob->cpu_data(), master_net->ip1->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(master_net->conv3->biasBlob->cpu_data(),    master_net->conv3->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(master_net->ip1->filtersBlob->cpu_data(),   master_net->ip1->filtersBlob->count()));
+		net_params_buffers.push_back(std::make_pair(master_net->ip1->biasBlob->cpu_data(),      master_net->ip1->biasBlob->count()));
 
-		// send net params into slaves
+		printf("send net params into slaves.\n");
 		for (int i=1; i<rank_size; i++) {
 			for(int j=0; j<8; j++) {
 				MPI_Send(net_params_buffers[j].first, net_params_buffers[j].second, MPI_FLOAT, i, net_params_tag, MPI_COMM_WORLD);
 			}
 		}
 
-
+		printf("begin to receiving messages from slaves ...\n");
 		MPI_Request recv_request;
 		MPI_Status  recv_status;
-		int         recv_flag;
+		int         recv_flag = -1;
 		float result[3];
 		int done_count = 0;
-		while(done_count != rank_size-1) {
-			MPI_Irecv(result, 3, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+		while(true) {
+			if(recv_flag != 0) {
+				MPI_Irecv(result, 3, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+				recv_flag = 0;
+			}
 			MPI_Test(&recv_request, &recv_flag, &recv_status);
 			if(recv_flag != 0) {
 				int recv_rank = recv_status.MPI_SOURCE;
@@ -195,7 +200,11 @@ int main(int argc, char **argv) {
 					printf("No, the received tag %d is not a correct tag.\n", recv_status.MPI_TAG);
 					break;
 				}
+				recv_flag = -1;
 			}
+
+			if(done_count == rank_size - 1)
+				break;
 		}
 
 		delete master_net;
@@ -236,13 +245,13 @@ int main(int argc, char **argv) {
 
 		vector<std::pair<float *, int> > net_params_buffers;
 		net_params_buffers.push_back(std::make_pair(slave_net->conv1->filtersBlob->cpu_data(), slave_net->conv1->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(slave_net->conv1->biasBlob->cpu_data(), slave_net->conv1->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(slave_net->conv1->biasBlob->cpu_data(),    slave_net->conv1->biasBlob->count()));
 		net_params_buffers.push_back(std::make_pair(slave_net->conv2->filtersBlob->cpu_data(), slave_net->conv2->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(slave_net->conv2->biasBlob->cpu_data(), slave_net->conv2->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(slave_net->conv2->biasBlob->cpu_data(),    slave_net->conv2->biasBlob->count()));
 		net_params_buffers.push_back(std::make_pair(slave_net->conv3->filtersBlob->cpu_data(), slave_net->conv3->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(slave_net->conv3->biasBlob->cpu_data(), slave_net->conv3->biasBlob->count()));
-		net_params_buffers.push_back(std::make_pair(slave_net->ip1->filtersBlob->cpu_data(), slave_net->ip1->filtersBlob->count()));
-		net_params_buffers.push_back(std::make_pair(slave_net->ip1->biasBlob->cpu_data(), slave_net->ip1->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(slave_net->conv3->biasBlob->cpu_data(),    slave_net->conv3->biasBlob->count()));
+		net_params_buffers.push_back(std::make_pair(slave_net->ip1->filtersBlob->cpu_data(),   slave_net->ip1->filtersBlob->count()));
+		net_params_buffers.push_back(std::make_pair(slave_net->ip1->biasBlob->cpu_data(),      slave_net->ip1->biasBlob->count()));
 
 		for(int j=0; j<8; j++) {
 			MPI_Status status;
