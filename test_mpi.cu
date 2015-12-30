@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
 				MPI_Get_count(&status, MPI_CHAR, &msg_size);
 				char *msg_str = new char[msg_size];
 				MPI_Recv(msg_str, msg_size, MPI_CHAR, msg_source, msg_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-				printf("rank %d, msg: %s\n", msg_source, msg_str);
+				printf("rank %d, %s: %s\n", msg_source, msg_tag == net_tst_cursor_tag ? "tst_msg" : "trn_msg", msg_str);
 				delete[] msg_str;
 			} else {
 				MPI_Recv(result, 3, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_status);
@@ -354,6 +354,14 @@ int main(int argc, char **argv) {
 
 		int num_tst_iters = ceil(10000 / batch_size);
 		int num_trn_iters = ceil(50000 / batch_size);
+
+		char *tst_msg_str = const_cast<char*>(tst_data_layer->cursor_->key().c_str());
+		MPI_Request tst_request;
+		MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
+
+		char *trn_msg_str = const_cast<char*>(trn_data_layer->cursor_->key().c_str());
+		MPI_Request trn_request;
+		MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
 
 		float result[3];
 		for(int epoch=0; epoch < 3; epoch++) {
