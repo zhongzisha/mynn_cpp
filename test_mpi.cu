@@ -114,10 +114,8 @@ int main(int argc, char **argv) {
 
 		printf("cursor_->value: %s\n", cursor_->value().c_str());
 
-		// send the hostname to the master
-		stringstream ss;
-		ss << myname << "_" << message_buf << "_" << cursor_->value().c_str();
-		char *ss_str = const_cast<char *>(ss.str().c_str());
+		// send the hostname to the master;
+		char *ss_str = const_cast<char *>(cursor_->value().c_str());
 		MPI_Send(ss_str, strlen(ss_str), MPI_CHAR, 0, name_tag, MPI_COMM_WORLD);
 		free(message_buf);
 	}
