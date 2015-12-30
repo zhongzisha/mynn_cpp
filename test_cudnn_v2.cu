@@ -1,6 +1,7 @@
 
 #include <glog/logging.h>
 #include <pthread.h>
+#include <mpi.h>
 
 #include <sstream>
 #include <fstream>
@@ -1288,8 +1289,7 @@ int test_hdf5_read_and_write(int argc, char **argv) {
 	CUBLAS_CHECK( cublasDestroy(cublas_handle) );
 	return 0;
 }
-*/
-int main(int argc, char **argv) {
+int main_test_rocksdb_seek_ok(int argc, char **argv) {
 
 	string db_name = argv[1];
 	string key_pos = argv[2];
@@ -1322,3 +1322,5 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
+*/
+

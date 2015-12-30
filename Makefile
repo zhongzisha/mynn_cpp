@@ -62,6 +62,26 @@ test:
 	-lboost_thread -lboost_filesystem -lboost_system \
 	-o ${OUTDIR}/test
 	
+test_mpi:
+	protoc -I=./ --cpp_out=./ ./myproto.proto
+	nvcc -m64 -ccbin=${MPIHOME}/bin/mpicxx \
+	-gencode arch=compute_35,code=sm_35 \
+	-gencode arch=compute_50,code=sm_50 \
+	-Xcompiler -fopenmp -std=c++11 \
+	-I${CUDA_ROOT}/include \
+	-I${GCC484_ROOT}/include \
+	myproto.pb.cc io.cpp db.cpp internal_thread.cpp common.cu blob.cu data_layer.cu common_layer.cu conv_layer.cu loss_layer.cu \
+	network_cifar10.cu network_alex.cu \
+	test_mpi.cu \
+	-L${CUDA_ROOT}/lib64 -L${CUDA_ROOT}/lib -lcudart -lcurand -lcublas -lcudnn \
+	-L${GCC484_ROOT}/lib64 -L${GCC484_ROOT}/lib \
+	-L${MPIHOME}/lib -lmpich -lmpichcxx -lmpl -lopa -lfmpich -lmpichf90 \
+	-lprotobuf -lglog -lgflags -lopencv_core -lopencv_imgproc -lopencv_highgui \
+	-lleveldb -llmdb -lrocksdb \
+	-lmatio -lhdf5 -lhdf5_hl \
+	-lboost_thread -lboost_filesystem -lboost_system \
+	-o ${OUTDIR}/test_mpi
+	
 main_cifar10net_1gpu:
 	protoc -I=./ --cpp_out=./ ./myproto.proto
 	nvcc -m64 -ccbin=g++ \
