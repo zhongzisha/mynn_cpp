@@ -106,13 +106,16 @@ int main(int argc, char **argv) {
 		char *message_buf = (char*)malloc(sizeof(char) * key_size);
 		MPI_Recv(message_buf, key_size, MPI_CHAR, 0, key_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-		cursor_->Seek(string(message_buf));
-		if(!cursor_->valid())
+//		char key_str[5];
+//		int key_len = snprintf(key_str, strlen(key_str) + 1, "%05d", rank);
+//
+//		cursor_->Seek(string(key_str));
+//		if(!cursor_->valid())
 			cursor_->SeekToFirst();
 
 		// send the hostname to the master
 		stringstream ss;
-		ss << myname << "_" << "_" << message_buf;
+		ss << myname << "_" << cursor_->value() << "_" << message_buf;
 		char *ss_str = const_cast<char *>(ss.str().c_str());
 		int ss_str_len = strlen(ss_str);
 		MPI_Send(ss_str, ss_str_len, MPI_CHAR, 0, name_tag, MPI_COMM_WORLD);
