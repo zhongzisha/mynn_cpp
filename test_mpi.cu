@@ -173,34 +173,25 @@ int main(int argc, char **argv) {
 		}
 
 		printf("begin to receiving messages from slaves ...\n");
-		MPI_Request recv_request;
 		MPI_Status  recv_status;
-		int         recv_flag = -1;
 		float result[3];
 		int done_count = 0;
 		while(true) {
-			if(recv_flag != 0) {
-				MPI_Irecv(result, 3, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
-				recv_flag = 0;
-			}
-			MPI_Test(&recv_request, &recv_flag, &recv_status);
-			if(recv_flag != 0) {
-				int recv_rank = recv_status.MPI_SOURCE;
-				switch(recv_status.MPI_TAG) {
-				case net_trn_tag:
-					printf("rank[%d]-epoch[%d]: trn_loss=%.6f, trn_acc=%.6f\n", recv_rank, (int)result[0], result[1], result[2]);
-					break;
-				case net_tst_tag:
-					printf("rank[%d]-epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n", recv_rank, (int)result[0], result[1], result[2]);
-					break;
-				case net_done_tag:
-					done_count+=1;
-					break;
-				default:
-					printf("No, the received tag %d is not a correct tag.\n", recv_status.MPI_TAG);
-					break;
-				}
-				recv_flag = -1;
+			MPI_Recv(result, 3, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_status);
+			int recv_rank = recv_status.MPI_SOURCE;
+			switch(recv_status.MPI_TAG) {
+			case net_trn_tag:
+				printf("rank[%d]-epoch[%d]: trn_loss=%.6f, trn_acc=%.6f\n", recv_rank, (int)result[0], result[1], result[2]);
+				break;
+			case net_tst_tag:
+				printf("rank[%d]-epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n", recv_rank, (int)result[0], result[1], result[2]);
+				break;
+			case net_done_tag:
+				done_count+=1;
+				break;
+			default:
+				printf("No, the received tag %d is not a correct tag.\n", recv_status.MPI_TAG);
+				break;
 			}
 
 			if(done_count == rank_size - 1)
