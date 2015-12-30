@@ -70,17 +70,16 @@ int main(int argc, char **argv) {
 		for(int rank = 1 ; rank < rank_size; rank++) {
 
 			int key = rand() % 50000;
-
-			// send different keys and to slaves
+			printf("send key to slaves.\n");
 			MPI_Send(&key, 1, MPI_INT, rank, key_tag, MPI_COMM_WORLD);
 		}
 
-		// receive the values corresponding to the keys from slaves
+		printf("receive hostnames from slaves.\n");
 		for(int rank = 1; rank < rank_size; rank++) {
 			MPI_Status status;
 			int name_size;
 			MPI_Probe(0, name_tag, MPI_COMM_WORLD, &status);
-			MPI_Get_count(&status, MPI_INT, &name_size);
+			MPI_Get_count(&status, MPI_CHAR, &name_size);
 			char *message_buf = (char*)malloc(sizeof(char) * name_size);
 			MPI_Probe(0, name_tag, MPI_COMM_WORLD, &status);
 			MPI_Recv(message_buf, name_size, MPI_CHAR, rank, name_tag, MPI_COMM_WORLD, &status);
@@ -90,15 +89,6 @@ int main(int argc, char **argv) {
 			free(message_buf);
 		}
 	} else {
-//		// Open the db_filename
-//		boost::shared_ptr<db::DB> db_;
-//		boost::shared_ptr<db::Cursor> cursor_;
-//		// Initialize DB
-//		db_.reset(db::GetDB("rocksdb"));
-//		db_->OpenForReadOnly(trn_db_filename, db::READ);
-//		cursor_.reset(db_->NewCursor());
-
-		// receive the keys
 		MPI_Status status;
 		int key;
 		/* Now receive the message into the allocated buffer */
@@ -111,23 +101,6 @@ int main(int argc, char **argv) {
 		char *ss_str = const_cast<char *>(ss.str().c_str());
 		int ss_str_len = strlen(ss_str);
 		MPI_Send(ss_str, ss_str_len, MPI_CHAR, 0, name_tag, MPI_COMM_WORLD);
-
-
-//		// access the database
-//		cursor_->Seek(argv[2]);
-//		if(!cursor_->valid())
-//			cursor_->SeekToFirst();
-//		int i = 0;
-//		while(i < batch_size) {
-//			printf("%s\n", cursor_->key().c_str());
-//			cursor_->Next();
-//			if(!cursor_->valid())
-//				cursor_->SeekToFirst();
-//			++i;
-//		}
-//
-//		// send the values of the keys
-//		MPI_Send();
 	}
 
 	MPI_Finalize();
