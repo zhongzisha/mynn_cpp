@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
 //		cursor_->Seek(string(key_str));
 //		if(!cursor_->valid())
 			cursor_->SeekToFirst();
-			printf("%d %s\n", rank_id, cursor_->value());
+			printf("%d %s\n", rank_id, cursor_->value().c_str());
 
 		// send the hostname to the master
 		stringstream ss;
