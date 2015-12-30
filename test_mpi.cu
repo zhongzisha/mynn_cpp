@@ -80,15 +80,15 @@ int main(int argc, char **argv) {
 		printf("receive hostnames from slaves.\n");
 		for(int rank = 1; rank < rank_size; rank++) {
 			MPI_Status status;
-			int name_size;
+			int message_size;
 			printf("probe rank %d\n", rank);
 			MPI_Probe(rank, name_tag, MPI_COMM_WORLD, &status);
 			printf("get count rank %d\n", rank);
-			MPI_Get_count(&status, MPI_CHAR, &name_size);
-			char *message_buf = (char*)malloc(sizeof(char) * name_size);
+			MPI_Get_count(&status, MPI_CHAR, &message_size);
+			char *message_buf = (char*)malloc(sizeof(char) * message_size);
 			printf("receive from rank %d\n", rank);
-			MPI_Recv(message_buf, name_size, MPI_CHAR, rank, name_tag, MPI_COMM_WORLD, &status);
-			printf("rank %d: %s\n", rank, message_buf);
+			MPI_Recv(message_buf, message_size, MPI_CHAR, rank, name_tag, MPI_COMM_WORLD, &status);
+			printf("rank %d: (%d), %s\n", rank, message_size, message_buf);
 			free(message_buf);
 		}
 	} else {
@@ -105,7 +105,6 @@ int main(int argc, char **argv) {
 		MPI_Get_count(&status, MPI_CHAR, &key_size);
 		char *message_buf = (char*)malloc(sizeof(char) * key_size);
 		MPI_Recv(message_buf, key_size, MPI_CHAR, 0, key_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		free(message_buf);
 
 		cursor_->Seek(string(message_buf));
 		if(!cursor_->valid())
@@ -117,6 +116,7 @@ int main(int argc, char **argv) {
 		char *ss_str = const_cast<char *>(ss.str().c_str());
 		int ss_str_len = strlen(ss_str);
 		MPI_Send(ss_str, ss_str_len, MPI_CHAR, 0, name_tag, MPI_COMM_WORLD);
+		free(message_buf);
 	}
 
 	MPI_Finalize();
