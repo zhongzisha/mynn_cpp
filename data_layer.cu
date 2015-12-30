@@ -10,6 +10,10 @@ void DataLayer_t::Setup() {
 	db_->OpenForReadOnly(data_params->source, db::READ);
 	cursor_.reset(db_->NewCursor());
 
+	if(cursor_start != 0) {
+		cursor_->Seek(cursor_start);
+	}
+
 	// Read a data point, and use it to initialize the top blob.
 	Datum datum;
 	datum.ParseFromString(cursor_->value());
@@ -264,7 +268,17 @@ void DataLayer_t::InternalThreadEntry(){
 		// go to the next iter
 		cursor_->Next();
 		if (!cursor_->valid()) {
-			cursor_->SeekToFirst();
+			cursor_->Seek(cursor_start);
 		}
 	}
+	// go to the next iter
+	if(cursor_step > 1) {
+		int temp = 0;
+		while(temp++ != cursor_step) {
+			cursor_->Next();
+			if (!cursor_->valid())
+				cursor_->Seek(cursor_start);
+		}
+	}
+
 }

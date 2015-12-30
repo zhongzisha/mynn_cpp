@@ -129,6 +129,7 @@ DB* GetDB(const string& backend) {
   } else {
     LOG(FATAL) << "Unknown database backend";
   }
+  return NULL;
 }
 
 }  // namespace db

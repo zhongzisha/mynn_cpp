@@ -32,6 +32,7 @@ class Cursor {
   virtual ~Cursor() { }
   virtual void SeekToFirst() = 0;
   virtual void Seek(const string &key_str) = 0;
+  virtual void Seek(int pos_from_first) = 0;
   virtual void Next() = 0;
   virtual string key() = 0;
   virtual string value() = 0;
@@ -70,6 +71,18 @@ class LevelDBCursor : public Cursor {
   ~LevelDBCursor() { delete iter_; }
   virtual void SeekToFirst() { iter_->SeekToFirst(); }
   virtual void Seek(const string &key_str) {};
+  virtual void Seek(int pos_from_first) {
+	  if(pos_from_first == 0) {
+		  iter_->SeekToFirst();
+	  } else {
+		  int temp = 0;
+		  while(temp++ != pos_from_first) {
+			  iter_->Next();
+			  if(!iter_->Valid())
+				  iter_->SeekToFirst();
+		  }
+	  }
+  };
   virtual void Next() { iter_->Next(); }
   virtual string key() { return iter_->key().ToString(); }
   virtual string value() { return iter_->value().ToString(); }
@@ -130,6 +143,18 @@ class RocksDBCursor : public Cursor {
   virtual void SeekToFirst() { iter_->SeekToFirst(); }
   virtual void Next() { iter_->Next(); }
   virtual void Seek(const string &key_str) { rocksdb::Slice key = key_str; iter_->Seek(key);}
+  virtual void Seek(int pos_from_first) {
+	  if(pos_from_first == 0) {
+		  iter_->SeekToFirst();
+	  } else {
+		  int temp = 0;
+		  while(temp++ != pos_from_first) {
+			  iter_->Next();
+			  if(!iter_->Valid())
+				  iter_->SeekToFirst();
+		  }
+	  }
+  };
   virtual string key() { return iter_->key().ToString(); }
   virtual string value() { return iter_->value().ToString(); }
   virtual bool valid() { return iter_->Valid(); }
@@ -202,6 +227,16 @@ class LMDBCursor : public Cursor {
 	  mdb_key_.mv_size = key_str.size();
 	  Seek(MDB_SET);
   }
+  virtual void Seek(int pos_from_first) {
+	  if(pos_from_first == 0) {
+		  Seek(MDB_FIRST);;
+	  } else {
+		  int temp = 0;
+		  while(temp++ != pos_from_first) {
+			  Seek(MDB_NEXT);
+		  }
+	  }
+  };
   virtual void Next() { Seek(MDB_NEXT); }
   virtual string key() {
     return string(static_cast<const char*>(mdb_key_.mv_data), mdb_key_.mv_size);

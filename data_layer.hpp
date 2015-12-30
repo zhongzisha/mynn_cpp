@@ -18,6 +18,19 @@
 class DataLayerParameter_t
 {
 public:
+	DataLayerParameter_t() {
+		backend = "lmdb";
+		source = "";
+		mean_file = "";
+		batch_size = 1;
+		crop_size = 0;
+		mirror = false;
+		scale = 1.0f;
+		has_mean_file = false;
+		phase = "train";
+		cursor_start = 0;
+		cursor_step = 1;
+	}
 	string backend;
 	string source;
 	string mean_file;
@@ -28,6 +41,8 @@ public:
 	bool has_mean_file;
 	vector<float> mean_values;
 	string phase;
+	int cursor_start;
+	int cursor_step;
 };
 
 class DataLayer_t : public InternalThread
@@ -50,6 +65,8 @@ public:
 	int top_height_;
 	int top_width_;
 	int top_datum_size_;
+	int cursor_start;
+	int cursor_step;
 
 	string phase;
 	boost::shared_ptr<db::DB> db_;
@@ -64,6 +81,8 @@ public:
 		has_mean_file = data_params->has_mean_file;
 		has_mean_values = data_params->mean_values.size() > 0;
 		phase = data_params->phase;
+		cursor_start = data_params->cursor_start;
+		cursor_step = data_params->cursor_step;
 
 		LOG(INFO) << "crop_size: " << crop_size << "\n"
 				<< "scale: " << scale << "\n"

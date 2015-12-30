@@ -2,9 +2,9 @@
 *.mexa64
 *~
 results_*
-*_lmdb/
-*_leveldb/
-*_rocksdb/
+*_lmdb*/
+*_leveldb*/
+*_rocksdb*/
 *.binaryproto
 .project
 .cproject
