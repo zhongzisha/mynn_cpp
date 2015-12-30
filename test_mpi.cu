@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
 		boost::shared_ptr<db::DB> db_;
 		boost::shared_ptr<db::Cursor> cursor_;
 		// Initialize DB
-		db_.reset(db::GetDB("rocksdb"));
+		db_.reset(db::GetDB(db_backend));
 		db_->OpenForReadOnly(trn_db_filename, db::READ);
 		cursor_.reset(db_->NewCursor());
 
