@@ -164,6 +164,18 @@ void Blob_t::diff_to_cpu()
 		CUDA_CHECK( cudaMemcpy(diff_cpu, diff_gpu, count * sizeof(float), cudaMemcpyDeviceToHost) );
 }
 
+float *Blob_t::cpu_data() {
+	if(data_cpu==NULL)
+		data_to_cpu();
+	return data_cpu;
+}
+
+float *Blob_t::cpu_diff() {
+	if(diff_cpu==NULL)
+		diff_to_cpu();
+	return diff_cpu;
+}
+
 void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu_id)
 {
 	int count = src->count();

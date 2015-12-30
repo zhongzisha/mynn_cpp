@@ -89,6 +89,9 @@ public:
 	void data_to_cpu();
 
 	void diff_to_cpu();
+
+	float *cpu_data();
+	float *cpu_diff();
 };
 
 void CopyBlobData_gpu(const Blob_t *src, int src_gpu_id, Blob_t *dst, int dst_gpu_id);
