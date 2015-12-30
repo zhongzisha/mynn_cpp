@@ -39,7 +39,7 @@ using namespace cv;
 int main(int argc, char **argv) {
 
 	if(argc != 13) {
-		LOG(FATAL) << ("Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay batch_size max_epoch_num gpu_ids\n");
+		printf("Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay batch_size max_epoch_num gpu_ids\n");
 		return -1;
 	}
 	int main_gpu_id = atoi(argv[1]);
@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
 	int max_epoch_num = atoi(argv[11]);
 	string gpu_ids_str = string(argv[12]);
 
+	printf("yes1\n");
 	MPI_Init(&argc, &argv);
 	int rank_id, rank_size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank_id);
@@ -64,7 +65,7 @@ int main(int argc, char **argv) {
 	MPI_Get_processor_name(myname, &namelen);
 	int key_tag = 1;
 	int name_tag = 2;
-
+	printf("yes2\n");
 
 	if(rank_id == 0) {
 		for(int rank = 1 ; rank < rank_size; rank++) {
