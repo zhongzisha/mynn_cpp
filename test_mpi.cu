@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
 		for(int rank = 1 ; rank < rank_size; rank++) {
 
 			int key = rand() % 50000;
-			printf("send key to slaves.\n");
+			printf("send key to slave %d.\n", rank);
 			MPI_Send(&key, 1, MPI_INT, rank, key_tag, MPI_COMM_WORLD);
 		}
 
@@ -79,12 +79,13 @@ int main(int argc, char **argv) {
 		for(int rank = 1; rank < rank_size; rank++) {
 			MPI_Status status;
 			int name_size;
+			printf("probe rank %d\n", rank);
 			MPI_Probe(0, name_tag, MPI_COMM_WORLD, &status);
+			printf("get count rank %d\n", rank);
 			MPI_Get_count(&status, MPI_CHAR, &name_size);
 			char *message_buf = (char*)malloc(sizeof(char) * name_size);
-			MPI_Probe(0, name_tag, MPI_COMM_WORLD, &status);
+			printf("receive from rank %d\n", rank);
 			MPI_Recv(message_buf, name_size, MPI_CHAR, rank, name_tag, MPI_COMM_WORLD, &status);
-
 			printf("rank %d: %s\n", rank, message_buf);
 
 			free(message_buf);
