@@ -72,6 +72,7 @@ int main(int argc, char **argv) {
 		}
 		tst_loss /= num_tst_iters;
 		tst_acc  /= num_tst_iters;
+		LOG(INFO) << "epoch[" << epoch << "]: tst_loss=" << tst_loss << ", tst_acc=" << tst_acc << "\n";
 
 		// training net
 		float trn_loss = 0.0f, trn_loss_batch = 0.0f;
@@ -92,8 +93,7 @@ int main(int argc, char **argv) {
 			lr_rate /= 10;
 			// trn_net->SaveNetParams(epoch);
 		}
-		printf("epoch[%d]: trn_loss=%.6f, trn_acc=%.6f, tst_loss=%.6f, tst_acc=%.6f\n",
-				epoch, trn_loss, trn_acc, tst_loss, tst_acc);
+		LOG(INFO) << "epoch[" << epoch << "]: trn_loss=" << trn_loss << ", trn_acc=" << trn_acc << "\n";
 	}
 
 	delete trn_net;
