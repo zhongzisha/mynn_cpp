@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
 			int key = rand() % 50000;
 			char key_str[5];
 			int key_len = snprintf(key_str, 5, "%05d", key);
-			printf("send key to slave %d.\n", rank);
+			printf("send key %s(%d) to slave %d.\n", key_str, key_len, rank);
 			MPI_Send(key_str, key_len, MPI_CHAR, rank, key_tag, MPI_COMM_WORLD);
 		}
 
