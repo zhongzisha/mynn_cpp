@@ -1,3 +1,6 @@
+#ifndef IO_HPP_
+#define IO_HPP_
+
 #include <unistd.h>
 #include <string>
 
@@ -149,3 +152,5 @@ void hdf5_load_nd_dataset_helper(hid_t file_id, const char* dataset_name_, int m
 void hdf5_load_nd_dataset(hid_t file_id, const char* dataset_name_, int min_dim, int max_dim, Blob_t *blob);
 
 void hdf5_save_nd_dataset(const hid_t file_id, const string& dataset_name, const Blob_t *blob);
+
+#endif

@@ -1,3 +1,6 @@
+#ifndef DB_HPP_
+#define DB_HPP_
+
 #include <string>
 
 using namespace std;
@@ -265,3 +268,4 @@ DB* GetDB(const string& backend);
 
 }  // namespace db
 
+#endif

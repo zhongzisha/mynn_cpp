@@ -1,8 +1,8 @@
 
 #include "data_layer.hpp"
-#include "myproto.pb.h"
-#include "common.hpp"
-#include "blob.hpp"
+//#include "myproto.pb.h"
+//#include "common.hpp"
+//#include "blob.hpp"
 
 void DataLayer_t::Setup() {
 	// Initialize DB

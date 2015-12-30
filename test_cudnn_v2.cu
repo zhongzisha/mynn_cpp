@@ -1,7 +1,6 @@
 
 #include <glog/logging.h>
 #include <pthread.h>
-#include <mpi.h>
 
 #include <sstream>
 #include <fstream>
@@ -1324,3 +1323,7 @@ int main_test_rocksdb_seek_ok(int argc, char **argv) {
 }
 */
 
+int main(int argc, char **argv) {
+
+	return 0;
+}

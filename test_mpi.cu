@@ -92,12 +92,6 @@ int main(int argc, char **argv) {
 			free(message_buf);
 		}
 	} else {
-		boost::shared_ptr<db::DB> db_;
-		boost::shared_ptr<db::Cursor> cursor_;
-		// Initialize DB
-		db_.reset(db::GetDB(db_backend));
-		db_->OpenForReadOnly(trn_db_filename, db::READ);
-		cursor_.reset(db_->NewCursor());
 
 		MPI_Status status;
 		MPI_Probe(0, key_tag, MPI_COMM_WORLD, &status);
@@ -105,19 +99,15 @@ int main(int argc, char **argv) {
 		MPI_Get_count(&status, MPI_CHAR, &key_size);
 		char *message_buf = (char*)malloc(sizeof(char) * key_size);
 		MPI_Recv(message_buf, key_size, MPI_CHAR, 0, key_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
 		printf("rank %d: %s\n", rank_id, message_buf);
-
-		cursor_->Seek(string(message_buf));
-		if(!cursor_->valid())
-			cursor_->SeekToFirst();
-
-		printf("cursor_->value: %s\n", cursor_->value().c_str());
+		string key = string(message_buf);
+		free(message_buf);
 
 		// send the hostname to the master;
-		char *ss_str = const_cast<char *>(cursor_->value().c_str());
+		stringstream ss;
+		ss << myname << "_" << key;
+		char *ss_str = const_cast<char *>(ss.str().c_str());
 		MPI_Send(ss_str, strlen(ss_str), MPI_CHAR, 0, name_tag, MPI_COMM_WORLD);
-		free(message_buf);
 	}
 
 	MPI_Finalize();
