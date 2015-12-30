@@ -78,17 +78,17 @@ int main(int argc, char **argv) {
 		}
 
 		printf("receive hostnames from slaves.\n");
-		for(int rank = 1; rank < rank_size; rank++) {
+		for(int rank_ = 1; rank_ < rank_size; rank_++) {
 			MPI_Status status;
 			int message_size;
-			printf("probe rank %d\n", rank);
-			MPI_Probe(rank, name_tag, MPI_COMM_WORLD, &status);
-			printf("get count rank %d\n", rank);
+			printf("probe rank %d\n", rank_);
+			MPI_Probe(rank_, name_tag, MPI_COMM_WORLD, &status);
+			printf("get count rank %d\n", rank_);
 			MPI_Get_count(&status, MPI_CHAR, &message_size);
 			char *message_buf = (char*)malloc(sizeof(char) * message_size);
-			printf("receive from rank %d\n", rank);
-			MPI_Recv(message_buf, message_size, MPI_CHAR, rank, name_tag, MPI_COMM_WORLD, &status);
-			printf("rank %d: (%d), %s\n", rank, message_size, message_buf);
+			printf("receive from rank %d\n", rank_);
+			MPI_Recv(message_buf, message_size, MPI_CHAR, rank_, name_tag, MPI_COMM_WORLD, &status);
+			printf("rank %d(%d): (%d), %s\n", rank_, status.MPI_ERROR, message_size, message_buf);
 			free(message_buf);
 		}
 	} else {
