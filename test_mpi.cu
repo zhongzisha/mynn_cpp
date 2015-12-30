@@ -26,14 +26,14 @@ using namespace cv;
 #include "hdf5.h"
 #include "hdf5_hl.h"
 
-//#include "common.hpp"
-//#include "blob.hpp"
-//#include "common_layer.hpp"
-//#include "data_layer.hpp"
-//#include "conv_layer.hpp"
-//#include "loss_layer.hpp"
-//#include "network_cifar10.hpp"
-//#include "network_alex.hpp"
+#include "common.hpp"
+#include "blob.hpp"
+#include "common_layer.hpp"
+#include "data_layer.hpp"
+#include "conv_layer.hpp"
+#include "loss_layer.hpp"
+#include "network_cifar10.hpp"
+#include "network_alex.hpp"
 
 
 int main(int argc, char **argv) {
@@ -71,8 +71,10 @@ int main(int argc, char **argv) {
 		for(int rank = 1 ; rank < rank_size; rank++) {
 
 			int key = rand() % 50000;
+			char key_str[5];
+			int key_len = snprintf(key_str, 5, "%05d", key);
 			printf("send key to slave %d.\n", rank);
-			MPI_Send(&key, 1, MPI_INT, rank, key_tag, MPI_COMM_WORLD);
+			MPI_Send(key_str, key_len, MPI_CHAR, rank, key_tag, MPI_COMM_WORLD);
 		}
 
 		printf("receive hostnames from slaves.\n");
@@ -87,19 +89,31 @@ int main(int argc, char **argv) {
 			printf("receive from rank %d\n", rank);
 			MPI_Recv(message_buf, name_size, MPI_CHAR, rank, name_tag, MPI_COMM_WORLD, &status);
 			printf("rank %d: %s\n", rank, message_buf);
-
 			free(message_buf);
 		}
 	} else {
-		MPI_Status status;
-		int key;
-		/* Now receive the message into the allocated buffer */
-		MPI_Recv(&key, 1, MPI_INT, 0, key_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		boost::shared_ptr<db::DB> db_;
+		boost::shared_ptr<db::Cursor> cursor_;
+		// Initialize DB
+		db_.reset(db::GetDB("rocksdb"));
+		db_->OpenForReadOnly(trn_db_filename, db::READ);
+		cursor_.reset(db_->NewCursor());
 
+		MPI_Status status;
+		MPI_Probe(0, key_tag, MPI_COMM_WORLD, &status);
+		int key_size;
+		MPI_Get_count(&status, MPI_CHAR, &key_size);
+		char *message_buf = (char*)malloc(sizeof(char) * key_size);
+		MPI_Recv(message_buf, key_size, MPI_CHAR, 0, key_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		free(message_buf);
+
+		cursor_->Seek(string(message_buf));
+		if(!cursor_->valid())
+			cursor_->SeekToFirst();
 
 		// send the hostname to the master
 		stringstream ss;
-		ss << myname << "_" << key;
+		ss << myname << "_" << cursor_->value() << "_" << message_buf;
 		char *ss_str = const_cast<char *>(ss.str().c_str());
 		int ss_str_len = strlen(ss_str);
 		MPI_Send(ss_str, ss_str_len, MPI_CHAR, 0, name_tag, MPI_COMM_WORLD);

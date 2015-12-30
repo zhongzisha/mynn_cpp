@@ -70,6 +70,8 @@ test_mpi:
 	-Xcompiler -fopenmp -std=c++11 \
 	-I${CUDA_ROOT}/include \
 	-I${GCC484_ROOT}/include \
+	myproto.pb.cc io.cpp db.cpp internal_thread.cpp common.cu blob.cu data_layer.cu common_layer.cu conv_layer.cu loss_layer.cu \
+	network_cifar10.cu network_alex.cu \
 	test_mpi.cu \
 	-L${CUDA_ROOT}/lib64 -L${CUDA_ROOT}/lib -lcudart -lcurand -lcublas -lcudnn \
 	-L${GCC484_ROOT}/lib64 -L${GCC484_ROOT}/lib \
