@@ -384,6 +384,73 @@ int main_independent_net_for_each_slave_ok(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+	// test MPI_Allreduce small example
+	MPI_Init(&argc, &argv);
+	int rank_id, rank_size;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank_id);
+	MPI_Comm_size(MPI_COMM_WORLD, &rank_size);
+	char myname[MPI_MAX_PROCESSOR_NAME];
+	int namelen;
+	MPI_Get_processor_name(myname, &namelen);
+
+	const int N = 10;
+	float *arr = NULL;
+	int arr_size;
+	const int data_tag = 1;
+	const int result_tag = 2;
+
+	// data transfer
+	if(rank_id == 0) {
+		// send data into slaves
+		arr = new float[10];
+		for(int i=0; i<N; i++)
+			arr[i] = (float)rand() / (float)RAND_MAX;
+
+		for(int i=1; i<rank_size; i++) {
+			MPI_Send(arr, N, MPI_FLOAT, i, data_tag, MPI_COMM_WORLD);
+		}
+	} else {
+		// rece data from master
+		MPI_Status status;
+		MPI_Probe(0, data_tag, MPI_COMM_WORLD, &status);
+		int arr_size;
+		MPI_Get_count(&status, MPI_FLOAT, &arr_size);
+		arr = new float[arr_size];
+		MPI_Recv(arr, arr_size, MPI_FLOAT, 0, data_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	}
+
+	float *global_sum = new float[N];
+	for(int i=0; i<N; i++)
+		global_sum[i] = 0;
+	MPI_Allreduce(arr, global_sum, N, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
+
+	if(rank_id == 0) {
+		printf("rank 0 global_sum: ");
+		for(int i=0; i<N; i++)
+			printf("%.6f ", global_sum[i]);
+		printf("\n");
+
+		for(int i=1; i<rank_size; i++) {
+			MPI_Recv(arr, N, MPI_FLOAT, 0, result_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			printf("rank %d global_sum: ", i);
+			for(int i=0; i<N; i++)
+				printf("%.6f ", arr[i]);
+			printf("\n");
+		}
+	} else {
+		MPI_Send(global_sum, N, MPI_FLOAT, 0, result_tag, MPI_COMM_WORLD);
+	}
+
+	if(arr != NULL)
+		delete[] arr;
+	if(global_sum != NULL)
+		delete[] global_sum;
+
+	return 0;
+
+}
+
+int main_still_debugging(int argc, char **argv) {
 
 	// test MPI_Allreduce
 	if(argc != 13) {
@@ -571,6 +638,10 @@ int main(int argc, char **argv) {
 		int num_trn_iters = ceil(50000 / batch_size);
 
 		float result[3];
+		float tst_local_results[2];
+		float tst_global_results[2];
+		float trn_local_results[2];
+		float trn_global_results[2];
 		for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 			float tst_loss = 0.0f, tst_loss_batch = 0.0f;
 			float tst_acc  = 0.0f, tst_acc_batch  = 0.0f;
@@ -580,15 +651,12 @@ int main(int argc, char **argv) {
 				tst_loss += tst_loss_batch;
 				tst_acc += tst_acc_batch;
 			}
+			tst_local_results[0] = tst_loss;
+			tst_local_results[1] =tst_acc;
+			MPI_Allreduce(tst_local_results, tst_global_results, 2, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 
-			float local_sum[2];
-			local_sum[0] = tst_loss;
-			local_sum[1] =tst_acc;
-			float global_sum[2] = {0, 0};
-			MPI_Allreduce(local_sum, global_sum, 2, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
-
-			tst_loss = global_sum[0] / num_tst_iters;
-			tst_acc  = global_sum[1] / num_tst_iters;
+			tst_loss = tst_global_results[0] / num_tst_iters;
+			tst_acc  = tst_global_results[1] / num_tst_iters;
 
 			result[0] = epoch;
 			result[1] = tst_loss;
@@ -635,6 +703,8 @@ int main(int argc, char **argv) {
 		result[2] = 0;
 		MPI_Request done_request;
 		MPI_Isend(result, 3, MPI_FLOAT, 0, net_done_tag, MPI_COMM_WORLD, &done_request);
+
+		return 0;
 	}
 }
 
