@@ -453,17 +453,6 @@ int main_test_mpi_allreduce(int argc, char **argv) {
 
 }
 
-bool is_number_in_set(const int *arr, int arr_size, int number) {
-	bool isin = false;
-	for(int i=0; i<arr_size; i++) {
-		if(arr[i] == number) {
-			isin = true;
-			break;
-		}
-	}
-	return isin;
-}
-
 int main(int argc, char **argv) {
 	// another thought
 	// test MPI_Allreduce
@@ -646,7 +635,8 @@ int main(int argc, char **argv) {
 		tst_loss /= num_tst_iters;
 		tst_acc  /= num_tst_iters;
 
-		printf("rank[%d]-epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n", rank_id, epoch, tst_loss, tst_acc);
+		if(rank_id == 0)
+			printf("rank[%d]-epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n", rank_id, epoch, tst_loss, tst_acc);
 
 		// training net
 		float trn_loss = 0.0f, trn_loss_batch = 0.0f;
@@ -693,7 +683,8 @@ int main(int argc, char **argv) {
 		trn_loss = trn_global_results[0] / rank_size;
 		trn_acc  = trn_global_results[1] / rank_size;
 
-		printf("rank[%d]-epoch[%d]: trn_loss=%.6f, trn_acc=%.6f\n", rank_id, epoch, trn_loss, trn_acc);
+		if(rank_id == 0)
+			printf("rank[%d]-epoch[%d]: trn_loss=%.6f, trn_acc=%.6f\n", rank_id, epoch, trn_loss, trn_acc);
 
 		// update learning rate
 		if((epoch != 0) && (epoch % lr_stepsize == 0)) {
@@ -701,9 +692,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if(rank_id == 0) {
+	if(rank_id == 0)
 		master_net->SaveNetParams(100);
-	}
 
 	delete master_net;
 	delete params_net;

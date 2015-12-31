@@ -94,6 +94,20 @@ main_cifar10net_1gpu_notstnet.o:main_cifar10net_1gpu_notstnet.cu
 main_cifar10net_1gpu_notstnet.exe: myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o main_cifar10net_1gpu_notstnet.o
 	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
 
+main_cifar10net_1gpu_mpi.o:main_cifar10net_1gpu_mpi.cu
+	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
+	
+main_cifar10net_1gpu_mpi.exe:myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o main_cifar10net_1gpu_mpi.o
+	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
+
+main_cifar10net_mgpu_mpi.o:main_cifar10net_mgpu_mpi.cu
+	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
+	
+main_cifar10net_mgpu_mpi.exe:myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o main_cifar10net_mgpu_mpi.o
+	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
+
+
+
 tools: convert_cifar_data.exe convert_imageset.exe compute_image_mean.exe
 tests: test.exe test_mpi.exe
 
