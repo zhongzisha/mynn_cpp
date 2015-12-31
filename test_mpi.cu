@@ -701,6 +701,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	if(rank_id == 0) {
+		master_net->SaveNetParams(100);
+	}
+
 	delete master_net;
 	delete params_net;
 	delete trn_data_layer;

@@ -528,26 +528,41 @@ void Cifar10Network_t::UpdateNet(float scale) {
 
 void Cifar10Network_t::SaveNetParams(int epoch) {
 	cudaSetDevice(gpu_id);
-	stringstream f1; f1 << net_name << "_c1_weight_e" << epoch << ".mat";
-	conv1->filtersBlob->save_cpu_data_and_diff_to_mat(f1.str().c_str());
 
-	stringstream f2; f2 << net_name << "_c1_bias_e" << epoch << ".mat";
-	conv1->biasBlob->save_cpu_data_and_diff_to_mat(f2.str().c_str());
+	const int max_length = 1024;
+	char filename[max_length];
 
-	stringstream f3; f3 << net_name << "_c2_weight_e" << epoch << ".mat";
-	conv2->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
-	stringstream f4; f4 << net_name << "_c2_bias_e" << epoch << ".mat";
-	conv2->biasBlob->save_cpu_data_and_diff_to_mat(f4.str().c_str());
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_c1_weight_e%d.mat", net_name.c_str(), epoch);
+	conv1->filtersBlob->save_cpu_data_and_diff_to_mat(filename);
 
-	stringstream f5; f5 << net_name << "_c3_weight_e" << epoch << ".mat";
-	conv3->filtersBlob->save_cpu_data_and_diff_to_mat(f3.str().c_str());
-	stringstream f6; f6 << net_name << "_c3_bias_e" << epoch << ".mat";
-	conv3->biasBlob->save_cpu_data_and_diff_to_mat(f6.str().c_str());
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_c1_bias_e%d.mat", net_name.c_str(), epoch);
+	conv1->biasBlob->save_cpu_data_and_diff_to_mat(filename);
 
-	stringstream f7; f7 << net_name << "_ip1_weight_e" << epoch << ".mat";
-	ip1->filtersBlob->save_cpu_data_and_diff_to_mat(f7.str().c_str());
-	stringstream f8; f8 << net_name << "_ip1_bias_e" << epoch << ".mat";
-	ip1->biasBlob->save_cpu_data_and_diff_to_mat(f8.str().c_str());
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_c2_weight_e%d.mat", net_name.c_str(), epoch);
+	conv2->filtersBlob->save_cpu_data_and_diff_to_mat(filename);
+
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_c2_bias_e%d.mat", net_name.c_str(), epoch);
+	conv2->biasBlob->save_cpu_data_and_diff_to_mat(filename);
+
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_c3_weight_e%d.mat", net_name.c_str(), epoch);
+	conv3->filtersBlob->save_cpu_data_and_diff_to_mat(filename);
+
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_c3_bias_e%d.mat", net_name.c_str(), epoch);
+	conv3->biasBlob->save_cpu_data_and_diff_to_mat(filename);
+
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_ip1_weight_e%d.mat", net_name.c_str(), epoch);
+	ip1->filtersBlob->save_cpu_data_and_diff_to_mat(filename);
+
+	memset(filename, 0, max_length);
+	sprintf(filename, "%s_ip1_bias_e%d.mat", net_name.c_str(), epoch);
+	ip1->biasBlob->save_cpu_data_and_diff_to_mat(filename);
 
 }
 
