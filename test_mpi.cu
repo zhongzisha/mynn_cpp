@@ -403,8 +403,12 @@ int main(int argc, char **argv) {
 	if(rank_id == 0) {
 		// send data into slaves
 		arr = new float[10];
-		for(int i=0; i<N; i++)
+		printf("rank 0 arr data: ");
+		for(int i=0; i<N; i++) {
 			arr[i] = (float)rand() / (float)RAND_MAX;
+			printf("%.6f ", arr[i]);
+		}
+		printf("\n");
 
 		for(int i=1; i<rank_size; i++) {
 			MPI_Send(arr, N, MPI_FLOAT, i, data_tag, MPI_COMM_WORLD);
@@ -431,7 +435,7 @@ int main(int argc, char **argv) {
 		printf("\n");
 
 		for(int i=1; i<rank_size; i++) {
-			MPI_Recv(arr, N, MPI_FLOAT, 0, result_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+			MPI_Recv(arr, N, MPI_FLOAT, i, result_tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 			printf("rank %d global_sum: ", i);
 			for(int i=0; i<N; i++)
 				printf("%.6f ", arr[i]);
