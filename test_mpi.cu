@@ -686,11 +686,11 @@ int main(int argc, char **argv) {
 			}
 
 			// update the master_net in each nodes
-			master_net->UpdateNet();
+			master_net->UpdateNet(-(1.0f / rank_size));
 
 		}
-		trn_local_results[0] = tst_loss;
-		trn_local_results[1] = tst_acc;
+		trn_local_results[0] = trn_loss;
+		trn_local_results[1] = trn_acc;
 		MPI_Allreduce(trn_local_results, trn_global_results, 2, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 		trn_loss = trn_global_results[0] / num_trn_iters;
 		trn_acc  = trn_global_results[1] / num_trn_iters;
