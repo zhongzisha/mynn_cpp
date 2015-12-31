@@ -359,61 +359,51 @@ int main(int argc, char **argv) {
 		int num_tst_iters = ceil(10000 / batch_size);
 		int num_trn_iters = ceil(50000 / batch_size);
 
-		// for trn_layer:
-		// rank_size=3 (i=0,1,2)
-		// batch_size=100
-		// rank 1: start=0, step=200
-		// rank 2: start=100, step=200
-
-		// for tst_layer:
-		// rank_size=3 (i=0,1,2)
-		// batch_size=100
-		// rank 1: start=0, step=1
-		// rank 2: start=0, step=1
-		stringstream ss;
-		ss.str("");
-		ss << "epoch_-1_" << tst_data_layer->cursor_->key()
-				<< "_cursorstart=" << tst_data_layer->cursor_start
-				<< "_cursorstep=" << tst_data_layer->cursor_step
-				<< "\0";
-		char *tst_msg_str = const_cast<char*>(ss.str().c_str());
-		MPI_Request tst_request;
-		MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
-
-		ss.str("");
-		ss << "epoch_-1_" << trn_data_layer->cursor_->key()
-				<< "_cursorstart=" << trn_data_layer->cursor_start
-				<< "_cursorstep=" << trn_data_layer->cursor_step
-				<< "\0";
-		char *trn_msg_str = const_cast<char*>(ss.str().c_str());
-		MPI_Request trn_request;
-		MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
-
 		float result[3];
 		for(int epoch=0; epoch < 3; epoch++) {
-			tst_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
+			float tst_loss = 0.0f, tst_loss_batch = 0.0f;
+			float tst_acc  = 0.0f, tst_acc_batch  = 0.0f;
+			for(int iter = 0; iter < num_tst_iters; iter++) {
+				tst_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
+				slave_net->Forward(&tst_loss_batch, &tst_acc_batch);
+				tst_loss += tst_loss_batch;
+				tst_acc += tst_acc_batch;
+			}
+			tst_loss /= num_tst_iters;
+			tst_acc  /= num_tst_iters;
 
-			ss.str("");
-			ss << "epoch_" << epoch << "_" << tst_data_layer->cursor_->key()
-					<< "_cursorstart=" << tst_data_layer->cursor_start
-					<< "_cursorstep=" << tst_data_layer->cursor_step
-					<< "\0";
-			char *tst_msg_str = const_cast<char*>(ss.str().c_str());
+
+
+			result[0] = epoch;
+			result[1] = tst_loss;
+			result[2] = tst_acc;
 			MPI_Request tst_request;
-			MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
+			MPI_Isend(result, 3, MPI_FLOAT, 0, net_tst_tag, MPI_COMM_WORLD, &tst_request);
 
+			// training net
+			float trn_loss = 0.0f, trn_loss_batch = 0.0f;
+			float trn_acc  = 0.0f, trn_acc_batch  = 0.0f;
+			for(int iter = 0; iter < num_trn_iters; iter++) {
+				trn_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
+				slave_net->ForwardBackward(&trn_loss_batch, &trn_acc_batch);
+				trn_loss += trn_loss_batch;
+				trn_acc  += trn_acc_batch;
+				slave_net->ComputeUpdateValue(lr_rate, momentum, weight_decay);
+				slave_net->UpdateNet();
+			}
+			trn_loss /= num_trn_iters;
+			trn_acc  /= num_trn_iters;
 
-			trn_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
-
-			ss.str("");
-			ss << "epoch_" << epoch << "_" << trn_data_layer->cursor_->key()
-					<< "_cursorstart=" << trn_data_layer->cursor_start
-					<< "_cursorstep=" << trn_data_layer->cursor_step
-					<< "\0";
-			char *trn_msg_str = const_cast<char*>(ss.str().c_str());
+			result[0] = epoch;
+			result[1] = trn_loss;
+			result[2] = trn_acc;
 			MPI_Request trn_request;
-			MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
+			MPI_Isend(result, 3, MPI_FLOAT, 0, net_trn_tag, MPI_COMM_WORLD, &trn_request);
 
+			// update learning rate
+			if((epoch != 0) && (epoch % lr_stepsize == 0)) {
+				lr_rate /= 10;
+			}
 		}
 
 
@@ -520,8 +510,6 @@ int main_ok(int argc, char **argv) {
 
 	} else {
 
-		float local_lr_rate = lr_rate;
-
 		cudaSetDevice(main_gpu_id);
 
 		DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
@@ -612,7 +600,7 @@ int main_ok(int argc, char **argv) {
 				slave_net->ForwardBackward(&trn_loss_batch, &trn_acc_batch);
 				trn_loss += trn_loss_batch;
 				trn_acc  += trn_acc_batch;
-				slave_net->ComputeUpdateValue(local_lr_rate, momentum, weight_decay);
+				slave_net->ComputeUpdateValue(lr_rate, momentum, weight_decay);
 				slave_net->UpdateNet();
 			}
 			trn_loss /= num_trn_iters;
@@ -626,7 +614,7 @@ int main_ok(int argc, char **argv) {
 
 			// update learning rate
 			if((epoch != 0) && (epoch % lr_stepsize == 0)) {
-				local_lr_rate /= 10;
+				lr_rate /= 10;
 			}
 		}
 
