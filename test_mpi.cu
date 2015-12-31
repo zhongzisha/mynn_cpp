@@ -207,8 +207,8 @@ int main(int argc, char **argv) {
 		// send cursor_start and cursor_step into slaves
 		int cursor_info[2] = {0,0};
 		for(int i=1; i<rank_size; i++) {
-			cursor_info[0] = (i-1) * batch_size;
-			cursor_info[1] = (rank_size - 1) * batch_size;
+			cursor_info[0] = (i-1) * batch_size; // cursor_start
+			cursor_info[1] = (rank_size - 1) * batch_size; // cursor_step
 			MPI_Send(cursor_info, 2, MPI_INT, i, cursor_tag, MPI_COMM_WORLD);
 		}
 
@@ -316,8 +316,8 @@ int main(int argc, char **argv) {
 		tst_data_param->mirror = false;
 		tst_data_param->has_mean_file = true;
 		tst_data_param->phase = "test";
-		trn_data_param->cursor_start = 0;
-		trn_data_param->cursor_step = 1;
+		tst_data_param->cursor_start = 0;
+		tst_data_param->cursor_step = 1;
 		DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 		tst_data_layer->Setup();
 
