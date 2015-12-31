@@ -355,24 +355,35 @@ int main(int argc, char **argv) {
 		int num_tst_iters = ceil(10000 / batch_size);
 		int num_trn_iters = ceil(50000 / batch_size);
 
-		char *tst_msg_str = const_cast<char*>(tst_data_layer->cursor_->key().c_str());
+		stringstream ss;
+		ss.str("");
+		ss << "epoch_-1" << tst_data_layer->cursor_->key();
+		char *tst_msg_str = const_cast<char*>(ss.str().c_str());
 		MPI_Request tst_request;
 		MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
 
-		char *trn_msg_str = const_cast<char*>(trn_data_layer->cursor_->key().c_str());
+		ss.str("");
+		ss << "epoch_-1" << trn_data_layer->cursor_->key();
+		char *trn_msg_str = const_cast<char*>(ss.str().c_str());
 		MPI_Request trn_request;
 		MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
 
 		float result[3];
 		for(int epoch=0; epoch < 3; epoch++) {
 			tst_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
-			char *tst_msg_str = const_cast<char*>(tst_data_layer->cursor_->key().c_str());
+
+			ss.str("");
+			ss << "epoch_" << epoch << tst_data_layer->cursor_->key();
+			char *tst_msg_str = const_cast<char*>(ss.str().c_str());
 			MPI_Request tst_request;
 			MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
 
 
 			trn_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
-			char *trn_msg_str = const_cast<char*>(trn_data_layer->cursor_->key().c_str());
+
+			ss.str("");
+			ss << "epoch_" << epoch << trn_data_layer->cursor_->key();
+			char *trn_msg_str = const_cast<char*>(ss.str().c_str());
 			MPI_Request trn_request;
 			MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
 
