@@ -675,8 +675,6 @@ int main(int argc, char **argv) {
 						MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 			}
 
-			// here, need divide the diff values by the rank_size
-
 			// copy params_net_params_cpu_diff into master_net_params_gpu_diff
 			for(int j=0; j<master_net_params_cpu_diff.size(); j++) {
 				CUDA_CHECK( cudaMemcpy(master_net_params_gpu_diff[j].first,
@@ -689,11 +687,11 @@ int main(int argc, char **argv) {
 			master_net->UpdateNet(-(1.0f / rank_size));
 
 		}
-		trn_local_results[0] = trn_loss;
-		trn_local_results[1] = trn_acc;
+		trn_local_results[0] = trn_loss / num_trn_iters;
+		trn_local_results[1] = trn_acc / num_trn_iters;
 		MPI_Allreduce(trn_local_results, trn_global_results, 2, MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
-		trn_loss = trn_global_results[0] / num_trn_iters;
-		trn_acc  = trn_global_results[1] / num_trn_iters;
+		trn_loss = trn_global_results[0] / rank_size;
+		trn_acc  = trn_global_results[1] / rank_size;
 
 		printf("rank[%d]-epoch[%d]: trn_loss=%.6f, trn_acc=%.6f\n", rank_id, epoch, trn_loss, trn_acc);
 
