@@ -271,7 +271,7 @@ void DataLayer_t::InternalThreadEntry(){
 			cursor_->Seek(cursor_start);
 		}
 	}
-	// go to the next iter
+
 	if(cursor_step > 1) {
 		int temp = 0;
 		while(temp++ != cursor_step) {

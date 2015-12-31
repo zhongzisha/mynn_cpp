@@ -229,7 +229,7 @@ class LMDBCursor : public Cursor {
   }
   virtual void Seek(int pos_from_first) {
 	  if(pos_from_first == 0) {
-		  Seek(MDB_FIRST);;
+		  Seek(MDB_FIRST);
 	  } else {
 		  int temp = 0;
 		  while(temp++ != pos_from_first) {

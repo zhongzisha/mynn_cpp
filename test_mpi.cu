@@ -211,6 +211,10 @@ int main(int argc, char **argv) {
 			cursor_info[1] = (rank_size - 1) * batch_size; // cursor_step
 			MPI_Send(cursor_info, 2, MPI_INT, i, cursor_tag, MPI_COMM_WORLD);
 		}
+		// rank_size=3 (i=0,1,2)
+		// batch_size=100
+		// rank 1: start=0, step=200
+		// rank 2: start=100, step=200
 
 		cudaSetDevice(main_gpu_id);
 
@@ -355,15 +359,26 @@ int main(int argc, char **argv) {
 		int num_tst_iters = ceil(10000 / batch_size);
 		int num_trn_iters = ceil(50000 / batch_size);
 
+		// for trn_layer:
+		// rank_size=3 (i=0,1,2)
+		// batch_size=100
+		// rank 1: start=0, step=200
+		// rank 2: start=100, step=200
+
+		// for tst_layer:
+		// rank_size=3 (i=0,1,2)
+		// batch_size=100
+		// rank 1: start=0, step=1
+		// rank 2: start=0, step=1
 		stringstream ss;
 		ss.str("");
-		ss << "epoch_-1" << tst_data_layer->cursor_->key();
+		ss << "epoch_-1_" << tst_data_layer->cursor_->key();
 		char *tst_msg_str = const_cast<char*>(ss.str().c_str());
 		MPI_Request tst_request;
 		MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
 
 		ss.str("");
-		ss << "epoch_-1" << trn_data_layer->cursor_->key();
+		ss << "epoch_-1_" << trn_data_layer->cursor_->key();
 		char *trn_msg_str = const_cast<char*>(ss.str().c_str());
 		MPI_Request trn_request;
 		MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
@@ -373,7 +388,7 @@ int main(int argc, char **argv) {
 			tst_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
 
 			ss.str("");
-			ss << "epoch_" << epoch << tst_data_layer->cursor_->key();
+			ss << "epoch_" << epoch << "_" << tst_data_layer->cursor_->key();
 			char *tst_msg_str = const_cast<char*>(ss.str().c_str());
 			MPI_Request tst_request;
 			MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
@@ -382,7 +397,7 @@ int main(int argc, char **argv) {
 			trn_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
 
 			ss.str("");
-			ss << "epoch_" << epoch << trn_data_layer->cursor_->key();
+			ss << "epoch_" << epoch << "_" << trn_data_layer->cursor_->key();
 			char *trn_msg_str = const_cast<char*>(ss.str().c_str());
 			MPI_Request trn_request;
 			MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
