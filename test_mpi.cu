@@ -372,13 +372,17 @@ int main(int argc, char **argv) {
 		// rank 2: start=0, step=1
 		stringstream ss;
 		ss.str("");
-		ss << "epoch_-1_" << tst_data_layer->cursor_->key();
+		ss << "epoch_-1_" << tst_data_layer->cursor_->key()
+				<< "_cursorstart=" << tst_data_layer->cursor_start
+				<< "_cursorstep=" << tst_data_layer->cursor_step;
 		char *tst_msg_str = const_cast<char*>(ss.str().c_str());
 		MPI_Request tst_request;
 		MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
 
 		ss.str("");
-		ss << "epoch_-1_" << trn_data_layer->cursor_->key();
+		ss << "epoch_-1_" << trn_data_layer->cursor_->key()
+				<< "_cursorstart=" << trn_data_layer->cursor_start
+				<< "_cursorstep=" << trn_data_layer->cursor_step;
 		char *trn_msg_str = const_cast<char*>(ss.str().c_str());
 		MPI_Request trn_request;
 		MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
@@ -388,7 +392,9 @@ int main(int argc, char **argv) {
 			tst_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
 
 			ss.str("");
-			ss << "epoch_" << epoch << "_" << tst_data_layer->cursor_->key();
+			ss << "epoch_" << epoch << "_" << tst_data_layer->cursor_->key()
+					<< "_cursorstart=" << tst_data_layer->cursor_start
+					<< "_cursorstep=" << tst_data_layer->cursor_step;
 			char *tst_msg_str = const_cast<char*>(ss.str().c_str());
 			MPI_Request tst_request;
 			MPI_Isend(tst_msg_str, strlen(tst_msg_str), MPI_CHAR, 0, net_tst_cursor_tag, MPI_COMM_WORLD, &tst_request);
@@ -397,7 +403,9 @@ int main(int argc, char **argv) {
 			trn_data_layer->Forward_to_Network(slave_net->batch_samples, slave_net->batch_labels);
 
 			ss.str("");
-			ss << "epoch_" << epoch << "_" << trn_data_layer->cursor_->key();
+			ss << "epoch_" << epoch << "_" << trn_data_layer->cursor_->key()
+					<< "_cursorstart=" << trn_data_layer->cursor_start
+					<< "_cursorstep=" << trn_data_layer->cursor_step;
 			char *trn_msg_str = const_cast<char*>(ss.str().c_str());
 			MPI_Request trn_request;
 			MPI_Isend(trn_msg_str, strlen(trn_msg_str), MPI_CHAR, 0, net_trn_cursor_tag, MPI_COMM_WORLD, &trn_request);
