@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 	// another thought
 	// test MPI_Allreduce
 	if(argc != 13) {
-		printf("Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay batch_size max_epoch_num gpu_ids\n");
+		LOG(FATAL) << ("Usage: <filename> main_gpu_id db_backend trn_db_filename tst_db_filename mean_file lr_rate lr_stepsize momentum weight_decay batch_size max_epoch_num gpu_ids\n");
 		return -1;
 	}
 	int main_gpu_id = atoi(argv[1]);
@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
 	const int net_params_tags[16] = {31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46};
 
 	cudaSetDevice(main_gpu_id);
-	std::cout << "current gpu id: " << main_gpu_id;
+	LOG(INFO) << "current gpu id: " << main_gpu_id;
 
 	vector<int> gpus;
 	vector<string> strings;
@@ -141,11 +141,11 @@ int main(int argc, char **argv) {
 	}
 	int num_gpus = 0;
 	cudaGetDeviceCount(&num_gpus);
-	std::cout << "number of manually-set gpus: " << gpus.size() <<
+	LOG(INFO) << "number of manually-set gpus: " << gpus.size() <<
 			"total " << num_gpus << " gpus.";
 
 	if(num_gpus >= gpus.size()) {
-		std::cout << ("enable P2P: ");
+		LOG(INFO) << ("enable P2P: ");
 		EnableP2P(gpus);
 	} else {
 		gpus.clear();
@@ -153,13 +153,13 @@ int main(int argc, char **argv) {
 	}
 
 	if(batch_size % gpus.size() != 0) {
-		std::cout << "batch_size: " << batch_size
+		LOG(FATAL) << "batch_size: " << batch_size
 				<< ", number of given gpus: " << gpus.size()
 				<< ", batch_size must be times of the number of given gpus.";
 		return -1;
 	}
 
-	printf("init trn data_layer ...\n");
+	LOG(INFO) << ("init trn data_layer ...\n");
 	DataLayerParameter_t *trn_data_param = new DataLayerParameter_t();
 	trn_data_param->backend = db_backend;
 	trn_data_param->batch_size = batch_size;
@@ -174,9 +174,9 @@ int main(int argc, char **argv) {
 	trn_data_param->cursor_step = rank_size * batch_size;
 	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
 	trn_data_layer->Setup();
-	printf("init trn data_layer (done) ...\n");
+	LOG(INFO) << ("init trn data_layer (done) ...\n");
 
-	printf("init tst data_layer ...\n");
+	LOG(INFO) << ("init tst data_layer ...\n");
 	DataLayerParameter_t *tst_data_param = new DataLayerParameter_t();
 	tst_data_param->backend = db_backend;
 	tst_data_param->batch_size = batch_size;
@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
 	tst_data_param->cursor_step = 1;
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
-	printf("init tst data_layer (done) ...\n");
+	LOG(INFO) << ("init tst data_layer (done) ...\n");
 
 	vector<AlexNetwork_t *> trn_nets(gpus.size());
 	vector<Blob_t *> batch_samples_slices(gpus.size());
@@ -236,13 +236,13 @@ int main(int argc, char **argv) {
 		thread_data[i].batch_labels = batch_labels_slices[i];
 	}
 
-	printf("init master_net and params_net ...\n");
+	LOG(INFO) << ("init master_net and params_net ...\n");
 	AlexNetwork_t *master_net = new AlexNetwork_t("master_net", main_gpu_id);
 	master_net->BuildNet(1, false, "");
 	AlexNetwork_t *params_net = new AlexNetwork_t("params_net", main_gpu_id);
 	params_net->BuildNet(1, false, "");
 
-	printf("get master_net_params_cpu_data.\n");
+	LOG(INFO) << ("get master_net_params_cpu_data.\n");
 	vector<std::pair<float *, int> > master_net_params_cpu_data;
 	master_net_params_cpu_data.push_back(std::make_pair(master_net->conv1->filtersBlob->cpu_data(), master_net->conv1->filtersBlob->count()));
 	master_net_params_cpu_data.push_back(std::make_pair(master_net->conv1->biasBlob->cpu_data(),    master_net->conv1->biasBlob->count()));
@@ -261,7 +261,7 @@ int main(int argc, char **argv) {
 	master_net_params_cpu_data.push_back(std::make_pair(master_net->fc8->filtersBlob->cpu_data(),   master_net->fc8->filtersBlob->count()));
 	master_net_params_cpu_data.push_back(std::make_pair(master_net->fc8->biasBlob->cpu_data(),      master_net->fc8->biasBlob->count()));
 
-	printf("get master_net_params_cpu_diff.\n");
+	LOG(INFO) << ("get master_net_params_cpu_diff.\n");
 	vector<std::pair<float *, int> > master_net_params_cpu_diff;
 	master_net_params_cpu_diff.push_back(std::make_pair(master_net->conv1->filtersBlob->cpu_diff(), master_net->conv1->filtersBlob->count()));
 	master_net_params_cpu_diff.push_back(std::make_pair(master_net->conv1->biasBlob->cpu_diff(),    master_net->conv1->biasBlob->count()));
@@ -280,7 +280,7 @@ int main(int argc, char **argv) {
 	master_net_params_cpu_diff.push_back(std::make_pair(master_net->fc8->filtersBlob->cpu_diff(),   master_net->fc8->filtersBlob->count()));
 	master_net_params_cpu_diff.push_back(std::make_pair(master_net->fc8->biasBlob->cpu_diff(),      master_net->fc8->biasBlob->count()));
 
-	printf("get master_net_params_gpu_diff.\n");
+	LOG(INFO) << ("get master_net_params_gpu_diff.\n");
 	vector<std::pair<float *, int> > master_net_params_gpu_diff;
 	master_net_params_gpu_diff.push_back(std::make_pair(master_net->conv1->filtersBlob->diff_gpu, master_net->conv1->filtersBlob->count()));
 	master_net_params_gpu_diff.push_back(std::make_pair(master_net->conv1->biasBlob->diff_gpu,    master_net->conv1->biasBlob->count()));
@@ -299,7 +299,7 @@ int main(int argc, char **argv) {
 	master_net_params_gpu_diff.push_back(std::make_pair(master_net->fc8->filtersBlob->diff_gpu,   master_net->fc8->filtersBlob->count()));
 	master_net_params_gpu_diff.push_back(std::make_pair(master_net->fc8->biasBlob->diff_gpu,      master_net->fc8->biasBlob->count()));
 
-	printf("get params_net_params_cpu_diff.\n");
+	LOG(INFO) << ("get params_net_params_cpu_diff.\n");
 	vector<std::pair<float *, int> > params_net_params_cpu_diff;
 	params_net_params_cpu_diff.push_back(std::make_pair(params_net->conv1->filtersBlob->cpu_diff(), params_net->conv1->filtersBlob->count()));
 	params_net_params_cpu_diff.push_back(std::make_pair(params_net->conv1->biasBlob->cpu_diff(),    params_net->conv1->biasBlob->count()));
@@ -319,7 +319,7 @@ int main(int argc, char **argv) {
 	params_net_params_cpu_diff.push_back(std::make_pair(params_net->fc8->biasBlob->cpu_diff(),      params_net->fc8->biasBlob->count()));
 
 	if(rank_id == 0) {
-		printf("send net params into slaves.\n");
+		LOG(INFO) << ("send net params into slaves.\n");
 		for(int i=1; i<rank_size; i++) {
 			for(int j=0; j<master_net_params_cpu_data.size(); j++) {
 				MPI_Send(master_net_params_cpu_data[j].first,
@@ -328,7 +328,7 @@ int main(int argc, char **argv) {
 			}
 		}
 	} else {
-		printf("recv net params from master.\n");
+		LOG(INFO) << ("recv net params from master.\n");
 		int done_count = 0;
 		while(done_count != master_net_params_cpu_data.size()) {
 			MPI_Status status;
@@ -343,7 +343,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		printf("copy net params into gpu.\n");
+		LOG(INFO) << ("copy net params into gpu.\n");
 		master_net->conv1->filtersBlob->data_to_gpu();
 		master_net->conv1->biasBlob->data_to_gpu();
 		master_net->conv2g->filtersBlob->data_to_gpu();
@@ -365,10 +365,13 @@ int main(int argc, char **argv) {
 	int num_tst_iters = ceil(50000 / batch_size);
 	int num_trn_iters = ceil(1281167 / (batch_size * rank_size));
 
+	LOG(INFO) << "num_tst_iters: " << num_tst_iters;
+	LOG(INFO) << "num_trn_iters: " << num_trn_iters;
+
 	float trn_local_results[2];
 	float trn_global_results[2];
 
-	printf("begin iteration: \n");
+	LOG(INFO) << ("begin iteration: \n");
 	for(int epoch = 0; epoch < max_epoch_num; epoch++) {
 		tst_loss = 0.0f;
 		tst_acc  = 0.0f;
@@ -390,8 +393,12 @@ int main(int argc, char **argv) {
 		tst_loss /= num_tst_iters * gpus.size();
 		tst_acc  /= num_tst_iters * gpus.size();
 
-		if(rank_id == 0)
-			printf("rank[%d]-epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n", rank_id, epoch, tst_loss, tst_acc);
+		if(rank_id == 0) {
+			LOG(INFO) << "rank[" << rank_id
+					<< "]-epoch[" << epoch
+					<< "]: tst_loss=" << tst_loss
+					<< ", tst_acc=" << tst_acc;
+		}
 
 		MPI_Barrier(MPI_COMM_WORLD);
 
@@ -399,6 +406,9 @@ int main(int argc, char **argv) {
 		trn_loss = 0.0f;
 		trn_acc  = 0.0f;
 		for(int iter = 0; iter < num_trn_iters; iter++) {
+
+			if(rank_id == 0 && iter % 500 == 0)
+				LOG(INFO) << "begin feed data into net, and forword and backward.";
 			trn_data_layer->Forward_to_Network_multi(gpus, batch_sizes, batch_samples_slices, batch_labels_slices);
 
 			// copy trn_net params into trn_nets_i
@@ -423,9 +433,6 @@ int main(int argc, char **argv) {
 			}
 			cudaDeviceSynchronize();
 
-			// copy the diff into cpu
-			if(rank_id == 0 && iter % 100 == 0)
-				printf("rank[%d]-epoch[%d]-iter[%d]: copy the diff into cpu\n", rank_id, epoch, iter);
 			master_net->conv1->filtersBlob->diff_to_cpu();
 			master_net->conv1->biasBlob->diff_to_cpu();
 			master_net->conv2g->filtersBlob->diff_to_cpu();
@@ -445,8 +452,13 @@ int main(int argc, char **argv) {
 
 			MPI_Barrier(MPI_COMM_WORLD);
 
-			if(rank_id == 0 && iter % 100 == 0)
-				printf("rank[%d]-epoch[%d]-iter[%d]: MPI_Allreduce\n", rank_id, epoch, iter);
+			if(rank_id == 0 && iter % 500 == 0)
+				LOG(INFO) << "begin feed data into net, and forword and backward(done).";
+
+
+
+			if(rank_id == 0 && iter % 500 == 0)
+				LOG(INFO) << "begin MPI_Allreduce to compute gradient, and copy diff into net.";
 			for(int j=0; j<master_net_params_cpu_diff.size(); j++) {
 				MPI_Allreduce(master_net_params_cpu_diff[j].first,
 						params_net_params_cpu_diff[j].first,
@@ -454,19 +466,21 @@ int main(int argc, char **argv) {
 						MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 			}
 
-
-			if(rank_id == 0 && iter % 100 == 0)
-				printf("rank[%d]-epoch[%d]-iter[%d]: copy params_net_params_cpu_diff into master_net_params_gpu_diff\n", rank_id, epoch, iter);
 			for(int j=0; j<master_net_params_cpu_diff.size(); j++) {
 				CUDA_CHECK( cudaMemcpy(master_net_params_gpu_diff[j].first,
 						params_net_params_cpu_diff[j].first,
 						params_net_params_cpu_diff[j].second * sizeof(float),
 						cudaMemcpyHostToDevice) );
 			}
+			if(rank_id == 0 && iter % 500 == 0)
+				LOG(INFO) << "begin MPI_Allreduce to compute gradient, and copy diff into net(done).";
 
-			if(rank_id == 0 && iter % 100 == 0)
-				printf("rank[%d]-epoch[%d]-iter[%d]: update the master_net in each nodes\n", rank_id, epoch, iter);
+
+			if(rank_id == 0 && iter % 500 == 0)
+				LOG(INFO) << "begin update net params.";
 			master_net->UpdateNet(-(1.0f / (rank_size * gpus.size())));
+			if(rank_id == 0 && iter % 500 == 0)
+				LOG(INFO) << "begin update net params(done).";
 
 		}
 		trn_local_results[0] = trn_loss / (num_trn_iters * gpus.size());
@@ -475,8 +489,12 @@ int main(int argc, char **argv) {
 		trn_loss = trn_global_results[0] / rank_size;
 		trn_acc  = trn_global_results[1] / rank_size;
 
-		if(rank_id == 0)
-			printf("rank[%d]-epoch[%d]: trn_loss=%.6f, trn_acc=%.6f\n", rank_id, epoch, trn_loss, trn_acc);
+		if(rank_id == 0) {
+			LOG(INFO) << "rank[" << rank_id
+					<< "]-epoch[" << epoch
+					<< "]: trn_loss=" << trn_loss
+					<< ", trn_acc=" << trn_acc;
+		}
 
 		// update learning rate
 		if((epoch != 0) && (epoch % lr_stepsize == 0)) {
@@ -504,7 +522,7 @@ int main(int argc, char **argv) {
 	delete tst_data_param;
 
 	if(num_gpus >= gpus.size()) {
-		std::cout << ("disable P2P: ");
+		LOG(INFO) << ("disable P2P: ");
 		DisableP2P(gpus);
 	}
 
