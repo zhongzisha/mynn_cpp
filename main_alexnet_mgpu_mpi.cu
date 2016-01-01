@@ -386,14 +386,14 @@ int main(int argc, char **argv) {
 			for(int i = 0; i < gpus.size(); i++) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
-
-			cudaDeviceSynchronize();
 		}
 		tst_loss /= num_tst_iters * gpus.size();
 		tst_acc  /= num_tst_iters * gpus.size();
 
 		if(rank_id == 0)
 			printf("rank[%d]-epoch[%d]: tst_loss=%.6f, tst_acc=%.6f\n", rank_id, epoch, tst_loss, tst_acc);
+
+		MPI_Barrier(MPI_COMM_WORLD);
 
 		// training net
 		trn_loss = 0.0f;
@@ -440,6 +440,8 @@ int main(int argc, char **argv) {
 			master_net->fc7->biasBlob->diff_to_cpu();
 			master_net->fc8->filtersBlob->diff_to_cpu();
 			master_net->fc8->biasBlob->diff_to_cpu();
+
+			MPI_Barrier(MPI_COMM_WORLD);
 
 			for(int j=0; j<master_net_params_cpu_diff.size(); j++) {
 				MPI_Allreduce(master_net_params_cpu_diff[j].first,
