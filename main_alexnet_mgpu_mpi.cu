@@ -363,7 +363,7 @@ int main(int argc, char **argv) {
 	}
 
 	int num_tst_iters = ceil(50000 / batch_size);
-	int num_trn_iters = ceil(1281167 / batch_size * rank_size);
+	int num_trn_iters = ceil(1281167 / (batch_size * rank_size));
 
 	float trn_local_results[2];
 	float trn_global_results[2];
