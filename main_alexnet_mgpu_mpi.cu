@@ -424,6 +424,8 @@ int main(int argc, char **argv) {
 			cudaDeviceSynchronize();
 
 			// copy the diff into cpu
+			if(rank_id == 0)
+				printf("epoch[%d]-iter[%d]: copy the diff into cpu\n", epoch, iter);
 			master_net->conv1->filtersBlob->diff_to_cpu();
 			master_net->conv1->biasBlob->diff_to_cpu();
 			master_net->conv2g->filtersBlob->diff_to_cpu();
@@ -443,6 +445,8 @@ int main(int argc, char **argv) {
 
 			MPI_Barrier(MPI_COMM_WORLD);
 
+			if(rank_id == 0)
+				printf("epoch[%d]-iter[%d]: MPI_Allreduce\n", epoch, iter);
 			for(int j=0; j<master_net_params_cpu_diff.size(); j++) {
 				MPI_Allreduce(master_net_params_cpu_diff[j].first,
 						params_net_params_cpu_diff[j].first,
@@ -450,7 +454,9 @@ int main(int argc, char **argv) {
 						MPI_FLOAT, MPI_SUM, MPI_COMM_WORLD);
 			}
 
-			// copy params_net_params_cpu_diff into master_net_params_gpu_diff
+
+			if(rank_id == 0)
+				printf("epoch[%d]-iter[%d]: copy params_net_params_cpu_diff into master_net_params_gpu_diff\n", epoch, iter);
 			for(int j=0; j<master_net_params_cpu_diff.size(); j++) {
 				CUDA_CHECK( cudaMemcpy(master_net_params_gpu_diff[j].first,
 						params_net_params_cpu_diff[j].first,
@@ -458,7 +464,8 @@ int main(int argc, char **argv) {
 						cudaMemcpyHostToDevice) );
 			}
 
-			// update the master_net in each nodes
+			if(rank_id == 0)
+				printf("epoch[%d]-iter[%d]: update the master_net in each nodes\n", epoch, iter);
 			master_net->UpdateNet(-(1.0f / (rank_size * gpus.size())));
 
 		}
