@@ -390,8 +390,8 @@ int main(int argc, char **argv) {
 				ret_count = pthread_join(threads[i], NULL);
 			}
 		}
-		tst_loss /= num_tst_iters * gpus.size();
-		tst_acc  /= num_tst_iters * gpus.size();
+		tst_loss /= (num_tst_iters * gpus.size());
+		tst_acc  /= (num_tst_iters * gpus.size());
 
 		if(rank_id == 0) {
 			LOG(INFO) << "rank[" << rank_id
