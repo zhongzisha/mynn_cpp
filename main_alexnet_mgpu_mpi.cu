@@ -407,8 +407,8 @@ int main(int argc, char **argv) {
 		trn_acc  = 0.0f;
 		for(int iter = 0; iter < num_trn_iters; iter++) {
 
-			if(rank_id == 0 && iter % 500 == 0)
-				LOG(INFO) << "begin feed data into net, and forword and backward.";
+//			if(rank_id == 0 && iter % 500 == 0)
+//				LOG(INFO) << "begin feed data into net, and forword and backward.";
 			trn_data_layer->Forward_to_Network_multi(gpus, batch_sizes, batch_samples_slices, batch_labels_slices);
 
 			// copy trn_net params into trn_nets_i
@@ -452,13 +452,13 @@ int main(int argc, char **argv) {
 
 			MPI_Barrier(MPI_COMM_WORLD);
 
-			if(rank_id == 0 && iter % 500 == 0)
-				LOG(INFO) << "begin feed data into net, and forword and backward(done).";
+//			if(rank_id == 0 && iter % 500 == 0)
+//				LOG(INFO) << "begin feed data into net, and forword and backward(done).";
 
 
 
-			if(rank_id == 0 && iter % 500 == 0)
-				LOG(INFO) << "begin MPI_Allreduce to compute gradient, and copy diff into net.";
+//			if(rank_id == 0 && iter % 500 == 0)
+//				LOG(INFO) << "begin MPI_Allreduce to compute gradient, and copy diff into net.";
 			for(int j=0; j<master_net_params_cpu_diff.size(); j++) {
 				MPI_Allreduce(master_net_params_cpu_diff[j].first,
 						params_net_params_cpu_diff[j].first,
@@ -472,15 +472,15 @@ int main(int argc, char **argv) {
 						params_net_params_cpu_diff[j].second * sizeof(float),
 						cudaMemcpyHostToDevice) );
 			}
-			if(rank_id == 0 && iter % 500 == 0)
-				LOG(INFO) << "begin MPI_Allreduce to compute gradient, and copy diff into net(done).";
+//			if(rank_id == 0 && iter % 500 == 0)
+//				LOG(INFO) << "begin MPI_Allreduce to compute gradient, and copy diff into net(done).";
 
 
-			if(rank_id == 0 && iter % 500 == 0)
-				LOG(INFO) << "begin update net params.";
+//			if(rank_id == 0 && iter % 500 == 0)
+//				LOG(INFO) << "begin update net params.";
 			master_net->UpdateNet(-(1.0f / (rank_size * gpus.size())));
-			if(rank_id == 0 && iter % 500 == 0)
-				LOG(INFO) << "begin update net params(done).";
+//			if(rank_id == 0 && iter % 500 == 0)
+//				LOG(INFO) << "begin update net params(done).";
 
 		}
 		trn_local_results[0] = trn_loss / (num_trn_iters * gpus.size());
