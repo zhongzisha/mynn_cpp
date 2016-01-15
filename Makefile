@@ -113,7 +113,7 @@ main_alexnet_mgpu_mpi.exe:myproto.pb.o io.o db.o internal_thread.o common.o blob
 	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
 	
 main_alexnet_mgpu_notstnet.o:main_alexnet_mgpu_notstnet.cu
-	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
+	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
 	
 main_alexnet_mgpu_notstnet.exe:myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o main_alexnet_mgpu_notstnet.o
 	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
