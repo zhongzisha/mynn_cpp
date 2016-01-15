@@ -19,8 +19,9 @@ LIBRARIES := -L${GCC484_ROOT}/lib64 -L${GCC484_ROOT}/lib \
 		-lboost_thread -lboost_filesystem -lboost_system -lgomp \
 		-L$(CUDA_ROOT)/lib64 -L$(CUDA_ROOT)/lib64/stubs \
 		-L$(CUDA_ROOT)/lib -L$(CUDA_ROOT)/lib/stubs \
-		-lcudart -lcublas -lcurand -lcudnn \
-		-L${MPIHOME}/lib -lmpich -lmpichcxx -lmpl -lopa -lfmpich -lmpichf90
+		-lcudart -lcublas -lcurand -lcudnn
+
+MPI_LIBRARIES := -L${MPIHOME}/lib -lmpich -lmpichcxx -lmpl -lopa -lfmpich -lmpichf90
 
 myproto.pb.o:myproto.pb.cc
 	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
@@ -86,7 +87,7 @@ test_mpi.o:test_mpi.cu
 	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
 	
 test_mpi.exe: myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o test_mpi.o
-	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
+	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES) $(MPI_LIBRARIES)
 
 main_cifar10net_1gpu_notstnet.o:main_cifar10net_1gpu_notstnet.cu
 	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
@@ -98,19 +99,19 @@ main_cifar10net_1gpu_mpi.o:main_cifar10net_1gpu_mpi.cu
 	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
 	
 main_cifar10net_1gpu_mpi.exe:myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o main_cifar10net_1gpu_mpi.o
-	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
+	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES) $(MPI_LIBRARIES)
 
 main_cifar10net_mgpu_mpi.o:main_cifar10net_mgpu_mpi.cu
 	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
 	
 main_cifar10net_mgpu_mpi.exe:myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o main_cifar10net_mgpu_mpi.o
-	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
+	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES) $(MPI_LIBRARIES)
 
 main_alexnet_mgpu_mpi.o:main_alexnet_mgpu_mpi.cu
 	$(NVCC_MPI) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
 	
 main_alexnet_mgpu_mpi.exe:myproto.pb.o io.o db.o internal_thread.o common.o blob.o data_layer.o common_layer.o conv_layer.o loss_layer.o network_cifar10.o network_alex.o main_alexnet_mgpu_mpi.o
-	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES)
+	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ $+ $(LIBRARIES) $(MPI_LIBRARIES)
 	
 main_alexnet_mgpu_notstnet.o:main_alexnet_mgpu_notstnet.cu
 	$(NVCC) $(NVCC_FLAGS) $(INCLUDES) -o $@ -c $<
