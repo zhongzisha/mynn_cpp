@@ -239,9 +239,9 @@ int main(int argc, char **argv) {
 
 	printf("init master_net and params_net ...\n");
 	Cifar10Network_t *master_net = new Cifar10Network_t("master_net", main_gpu_id);
-	master_net->BuildNet(batch_size, true, "");
+	master_net->BuildNet(1, false, "");
 	Cifar10Network_t *params_net = new Cifar10Network_t("params_net", main_gpu_id);
-	params_net->BuildNet(batch_size, false, "");
+	params_net->BuildNet(1, false, "");
 
 	printf("get master_net_params_cpu_data.\n");
 	vector<std::pair<float *, int> > master_net_params_cpu_data;
