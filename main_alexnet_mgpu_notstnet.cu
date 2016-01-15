@@ -146,6 +146,8 @@ int main(int argc, char **argv) {
 	trn_data_param->mirror = true;
 	trn_data_param->has_mean_file = true;
 	trn_data_param->phase = "train";
+	trn_data_param->cursor_start = 0;
+	trn_data_param->cursor_step = 1;
 	DataLayer_t *trn_data_layer = new DataLayer_t(trn_data_param);
 	trn_data_layer->Setup();
 
@@ -159,6 +161,8 @@ int main(int argc, char **argv) {
 	tst_data_param->mirror = false;
 	tst_data_param->has_mean_file = true;
 	tst_data_param->phase = "test";
+	tst_data_param->cursor_start = 0;
+	tst_data_param->cursor_step = 1;
 	DataLayer_t *tst_data_layer = new DataLayer_t(tst_data_param);
 	tst_data_layer->Setup();
 
